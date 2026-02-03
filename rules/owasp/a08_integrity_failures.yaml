@@ -1,0 +1,139 @@
+# OWASP A08:2025 - Software and Data Integrity Failures
+
+metadata:
+  category: A08
+  name: Software and Data Integrity Failures
+  description: "Rules for detecting integrity vulnerabilities"
+  version: "1.0.0"
+
+rules:
+  - id: INTEGRITY-001
+    name: Insecure Deserialization
+    description: Deserializing data without integrity verification
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A08
+    tags: [integrity, deserialization]
+    languages: [java, python, php]
+    detection:
+      patterns:
+        - pattern: "ObjectInputStream\\s*\\("
+          language: java
+        - pattern: "readObject\\s*\\(\\)"
+          language: java
+        - pattern: "XMLDecoder\\s*\\("
+          language: java
+        - pattern: "pickle\\.loads?\\s*\\("
+          language: python
+        - pattern: "unserialize\\s*\\("
+          language: php
+        - pattern: "yaml\\.unsafe_load"
+          language: python
+    remediation:
+      description: "Avoid deserializing untrusted data. Use JSON or implement integrity checks."
+
+  - id: INTEGRITY-002
+    name: Missing Subresource Integrity
+    description: External script or stylesheet loaded without SRI
+    severity: low
+    confidence: high
+    cwe: CWE-353
+    owasp: A08
+    tags: [integrity, sri, frontend]
+    languages: [html, javascript]
+    detection:
+      patterns:
+        - pattern: "<script[^>]*src\\s*=\\s*[\"']https?://(?!.*integrity)"
+        - pattern: "<link[^>]*href\\s*=\\s*[\"']https?://(?!.*integrity)"
+    remediation:
+      description: "Add integrity and crossorigin attributes to external resources"
+
+  - id: INTEGRITY-003
+    name: Unsigned Code Execution
+    description: Executing code without signature verification
+    severity: high
+    confidence: medium
+    cwe: CWE-494
+    owasp: A08
+    tags: [integrity, code-signing]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "URLClassLoader\\s*\\("
+          language: java
+        - pattern: "Runtime\\.getRuntime\\(\\)\\.exec"
+          language: java
+        - pattern: "eval\\s*\\("
+        - pattern: "exec\\s*\\("
+          language: python
+    remediation:
+      description: "Verify code signatures before execution"
+
+  - id: INTEGRITY-004
+    name: Insecure CI/CD Configuration
+    description: CI/CD pipeline with insecure configuration
+    severity: high
+    confidence: medium
+    cwe: CWE-494
+    owasp: A08
+    tags: [integrity, cicd, pipeline]
+    languages: [yaml]
+    detection:
+      patterns:
+        - pattern: "curl.*\\|.*sh"
+        - pattern: "wget.*\\|.*bash"
+        - pattern: "pip install.*--trusted-host"
+        - pattern: "npm install.*--ignore-scripts"
+    remediation:
+      description: "Verify checksums of downloaded artifacts. Use trusted registries."
+
+  - id: INTEGRITY-005
+    name: Missing Update Integrity Check
+    description: Auto-update without integrity verification
+    severity: high
+    confidence: medium
+    cwe: CWE-494
+    owasp: A08
+    tags: [integrity, update]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "download.*update(?!.*verify|.*checksum|.*signature)"
+        - pattern: "auto.?update.*true"
+    remediation:
+      description: "Verify digital signatures and checksums for all updates"
+
+  - id: INTEGRITY-006
+    name: Insecure Package Installation
+    description: Installing packages from untrusted sources
+    severity: medium
+    confidence: medium
+    cwe: CWE-494
+    owasp: A08
+    tags: [integrity, dependency, supply-chain]
+    languages: [yaml, dockerfile]
+    detection:
+      patterns:
+        - pattern: "pip install.*-i\\s+http://"
+        - pattern: "npm config set registry http://"
+        - pattern: "maven.*http://(?!localhost)"
+    remediation:
+      description: "Use HTTPS for package registries. Verify package signatures."
+
+  - id: INTEGRITY-007
+    name: Hardcoded Checksum Bypass
+    description: Checksum verification disabled or bypassed
+    severity: high
+    confidence: high
+    cwe: CWE-354
+    owasp: A08
+    tags: [integrity, checksum]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "verifyChecksum\\s*=\\s*false"
+        - pattern: "skipIntegrityCheck\\s*=\\s*true"
+        - pattern: "SKIP_VERIFICATION\\s*=\\s*True"
+    remediation:
+      description: "Always verify checksums for downloaded content"

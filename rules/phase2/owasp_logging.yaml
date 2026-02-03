@@ -1,0 +1,152 @@
+# Phase 2: OWASP A09 Security Logging and Monitoring Failures
+
+metadata:
+  category: "A09:2025"
+  category_name: "Security Logging and Monitoring Failures"
+  description: "Rules for detecting logging and monitoring issues"
+  version: "2.0.0"
+
+rules:
+  # ============================================
+  # Sensitive Data Logging
+  # ============================================
+
+  - id: "A09-LOG-001"
+    name: "Sensitive Data in Logs"
+    description: "Logging of sensitive information (passwords, tokens, PII)"
+    severity: high
+    confidence: medium
+    owasp_category: "A09:2025"
+    cwe: "CWE-532"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "log(ger)?\\.(info|debug|warn|error).*password"
+        type: regex
+        message: "Password in log statement"
+      - pattern: "log(ger)?\\.(info|debug|warn|error).*token"
+        type: regex
+        message: "Token in log statement"
+      - pattern: "log(ger)?\\.(info|debug|warn|error).*secret"
+        type: regex
+        message: "Secret in log statement"
+      - pattern: "log(ger)?\\.(info|debug|warn|error).*creditCard"
+        type: regex
+        message: "Credit card in log statement"
+      - pattern: "log(ger)?\\.(info|debug|warn|error).*ssn"
+        type: regex
+        message: "SSN in log statement"
+      - pattern: "console\\.(log|info|warn|error).*password"
+        type: regex
+        message: "Password in console log"
+      - pattern: "print\\(.*password"
+        type: regex
+        message: "Password in print statement"
+    remediation:
+      description: "Never log sensitive data. Mask or redact PII and credentials."
+    tags: [sensitive-logging, owasp-a09]
+
+  # ============================================
+  # Exception Information Disclosure
+  # ============================================
+
+  - id: "A09-LOG-002"
+    name: "Stack Trace Exposure"
+    description: "Stack trace or debug info exposed to users"
+    severity: medium
+    confidence: medium
+    owasp_category: "A09:2025"
+    cwe: "CWE-209"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "printStackTrace\\s*\\(\\)"
+        type: regex
+        message: "printStackTrace to stdout"
+      - pattern: "e\\.getMessage\\(\\)"
+        type: regex
+        message: "Exception message exposure"
+      - pattern: "traceback\\.print_exc"
+        type: regex
+        message: "Python traceback print"
+      - pattern: "DEBUG\\s*=\\s*True"
+        type: regex
+        message: "Debug mode enabled"
+    remediation:
+      description: "Log exceptions server-side but return generic errors to users"
+    tags: [stack-trace, error-handling, owasp-a09]
+
+  # ============================================
+  # Missing Security Logging
+  # ============================================
+
+  - id: "A09-LOG-003"
+    name: "Authentication Without Logging"
+    description: "Authentication events should be logged"
+    severity: medium
+    confidence: low
+    owasp_category: "A09:2025"
+    cwe: "CWE-778"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "login|authenticate|signIn"
+        type: regex
+        message: "Authentication method without logging (verify manually)"
+    remediation:
+      description: "Log all authentication events including failures"
+    tags: [audit-logging, authentication, owasp-a09]
+
+  # ============================================
+  # Log Injection
+  # ============================================
+
+  - id: "A09-LOG-004"
+    name: "Log Injection"
+    description: "User input in log messages without sanitization"
+    severity: medium
+    confidence: medium
+    owasp_category: "A09:2025"
+    cwe: "CWE-117"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "logger\\.(info|debug|warn|error)\\s*\\(.*\\+\\s*.*getParameter"
+        type: regex
+        message: "Log injection via request parameter"
+      - pattern: "logger\\.(info|debug|warn|error)\\s*\\(.*\\+\\s*.*request\\."
+        type: regex
+        message: "Log injection via request data"
+      - pattern: "log\\.(info|debug|warn|error)\\s*\\(.*\\+\\s*.*req\\."
+        type: regex
+        message: "Node.js log injection"
+    remediation:
+      description: "Sanitize user input before logging. Use structured logging."
+    tags: [log-injection, owasp-a09]
+
+  # ============================================
+  # Debug/Verbose Logging in Production
+  # ============================================
+
+  - id: "A09-LOG-005"
+    name: "Debug Logging Enabled"
+    description: "Debug or verbose logging should be disabled in production"
+    severity: low
+    confidence: medium
+    owasp_category: "A09:2025"
+    cwe: "CWE-215"
+    languages: [java, python, javascript, xml, yaml, properties]
+    detection_mode: pattern
+    patterns:
+      - pattern: "logging\\.level\\.root\\s*=\\s*(DEBUG|TRACE)"
+        type: regex
+        message: "Debug logging level"
+      - pattern: "DEBUG\\s*=\\s*True"
+        type: regex
+        message: "Django DEBUG enabled"
+      - pattern: "debug\\s*:\\s*true"
+        type: regex
+        message: "Debug mode enabled in config"
+    remediation:
+      description: "Disable debug logging in production environments"
+    tags: [debug-logging, owasp-a09]

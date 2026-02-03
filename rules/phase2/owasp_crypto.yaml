@@ -1,0 +1,219 @@
+# Phase 2: OWASP A02 Cryptographic Failures Rules
+# Weak cryptography, key management, and data protection issues
+
+metadata:
+  category: "A02:2025"
+  category_name: "Cryptographic Failures"
+  description: "Rules for detecting cryptographic vulnerabilities"
+  version: "2.0.0"
+
+rules:
+  # ============================================
+  # Weak Algorithms
+  # ============================================
+
+  - id: "A02-CRYPTO-001"
+    name: "Weak Hash Algorithm"
+    description: "Use of cryptographically weak hash algorithms"
+    severity: high
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-328"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "MessageDigest\\.getInstance\\s*\\(\\s*[\"']MD5[\"']"
+        type: regex
+        message: "MD5 hash algorithm"
+      - pattern: "MessageDigest\\.getInstance\\s*\\(\\s*[\"']SHA-?1[\"']"
+        type: regex
+        message: "SHA-1 hash algorithm"
+      - pattern: "hashlib\\.(md5|sha1)\\s*\\("
+        type: regex
+        message: "Python weak hash"
+      - pattern: "(md5|sha1)\\s*\\("
+        type: regex
+        message: "Weak hash function call"
+    remediation:
+      description: "Use SHA-256 or stronger. For passwords, use bcrypt, scrypt, or Argon2."
+    tags: [weak-crypto, hash, owasp-a02]
+
+  - id: "A02-CRYPTO-002"
+    name: "Weak Encryption Algorithm"
+    description: "Use of weak encryption algorithms (DES, 3DES, RC4)"
+    severity: high
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-327"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"']DES"
+        type: regex
+        message: "DES encryption"
+      - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"']RC4"
+        type: regex
+        message: "RC4 encryption"
+      - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"'].*ECB"
+        type: regex
+        message: "ECB mode encryption"
+      - pattern: "DES\\.new\\s*\\("
+        type: regex
+        message: "Python DES encryption"
+    remediation:
+      description: "Use AES-256 with GCM mode for authenticated encryption"
+    tags: [weak-crypto, encryption, owasp-a02]
+
+  # ============================================
+  # Key Management
+  # ============================================
+
+  - id: "A02-KEY-001"
+    name: "Hardcoded Encryption Key"
+    description: "Encryption key hardcoded in source code"
+    severity: critical
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-321"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "SecretKeySpec\\s*\\(\\s*[\"']"
+        type: regex
+        message: "Hardcoded secret key"
+      - pattern: "(encryption|aes|secret)_?key\\s*=\\s*[\"'][A-Za-z0-9+/=]{16,}"
+        type: regex
+        message: "Hardcoded encryption key"
+      - pattern: "ENCRYPTION_KEY\\s*=\\s*[\"']"
+        type: regex
+        message: "Hardcoded encryption key constant"
+    remediation:
+      description: "Use secure key management (KMS, HSM, vault). Never hardcode keys."
+    tags: [hardcoded-key, key-management, owasp-a02]
+
+  - id: "A02-KEY-002"
+    name: "Weak Key Size"
+    description: "Cryptographic key with insufficient length"
+    severity: high
+    confidence: medium
+    owasp_category: "A02:2025"
+    cwe: "CWE-326"
+    languages: [java, python]
+    detection_mode: pattern
+    patterns:
+      - pattern: "KeyGenerator.*init\\s*\\(\\s*(64|128)\\s*\\)"
+        type: regex
+        message: "Weak key size"
+      - pattern: "RSA.*1024"
+        type: regex
+        message: "RSA 1024-bit key"
+    remediation:
+      description: "Use AES-256, RSA-2048+, or EC-256+ keys"
+    tags: [weak-key, key-management, owasp-a02]
+
+  # ============================================
+  # Password Storage
+  # ============================================
+
+  - id: "A02-PASS-001"
+    name: "Plaintext Password Storage"
+    description: "Password stored or compared in plaintext"
+    severity: critical
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-256"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "password\\s*==?\\s*[\"']"
+        type: regex
+        message: "Plaintext password comparison"
+      - pattern: "password\\.equals\\s*\\("
+        type: regex
+        message: "Password string comparison"
+      - pattern: "setPassword\\s*\\(.*getParameter"
+        type: regex
+        message: "Password set from request without hashing"
+    remediation:
+      description: "Use bcrypt, scrypt, or Argon2 for password hashing"
+    tags: [password-storage, owasp-a02]
+
+  # ============================================
+  # TLS/SSL Issues
+  # ============================================
+
+  - id: "A02-TLS-001"
+    name: "Insecure TLS Version"
+    description: "Use of deprecated TLS/SSL versions"
+    severity: high
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-327"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "SSLv2|SSLv3|TLSv1\\.0|TLSv1\\.1"
+        type: regex
+        message: "Insecure TLS/SSL version"
+      - pattern: "setEnabledProtocols.*SSL"
+        type: regex
+        message: "SSL protocol enabled"
+    remediation:
+      description: "Use TLS 1.2 or higher with strong cipher suites"
+    tags: [tls, ssl, owasp-a02]
+
+  - id: "A02-TLS-002"
+    name: "Certificate Validation Disabled"
+    description: "SSL/TLS certificate validation bypassed"
+    severity: critical
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-295"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "setHostnameVerifier\\s*\\(.*ALLOW_ALL"
+        type: regex
+        message: "Hostname verification disabled"
+      - pattern: "TrustManager.*checkServerTrusted.*return"
+        type: regex
+        message: "Server trust check bypassed"
+      - pattern: "verify\\s*=\\s*False"
+        type: regex
+        message: "Python SSL verify disabled"
+      - pattern: "rejectUnauthorized\\s*:\\s*false"
+        type: regex
+        message: "Node.js SSL verification disabled"
+      - pattern: "CERT_NONE"
+        type: regex
+        message: "Python CERT_NONE"
+    remediation:
+      description: "Always validate SSL certificates. Never disable verification."
+    tags: [certificate-validation, tls, owasp-a02]
+
+  # ============================================
+  # Random Number Generation
+  # ============================================
+
+  - id: "A02-RAND-001"
+    name: "Insecure Random Number"
+    description: "Use of non-cryptographic random number generator"
+    severity: medium
+    confidence: high
+    owasp_category: "A02:2025"
+    cwe: "CWE-330"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "new Random\\s*\\("
+        type: regex
+        message: "java.util.Random (not cryptographically secure)"
+      - pattern: "Math\\.random\\s*\\("
+        type: regex
+        message: "Math.random (not cryptographically secure)"
+      - pattern: "random\\.random\\s*\\("
+        type: regex
+        message: "Python random (not cryptographically secure)"
+    remediation:
+      description: "Use SecureRandom (Java), secrets (Python), or crypto.randomBytes (Node.js)"
+    tags: [insecure-random, owasp-a02]

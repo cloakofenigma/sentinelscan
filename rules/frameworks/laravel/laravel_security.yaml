@@ -1,0 +1,206 @@
+# Laravel Framework Security Rules
+
+metadata:
+  framework: laravel
+  name: Laravel Security Rules
+  description: "Security rules for Laravel applications"
+  version: "1.0.0"
+
+rules:
+  - id: LARAVEL-001
+    name: Debug Mode Enabled
+    description: APP_DEBUG is true in production
+    severity: high
+    confidence: high
+    cwe: CWE-489
+    owasp: A05
+    tags: [laravel, debug, config]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "APP_DEBUG\\s*=\\s*true"
+        - pattern: "'debug'\\s*=>\\s*true"
+    remediation:
+      description: "Set APP_DEBUG=false in production"
+
+  - id: LARAVEL-002
+    name: SQL Injection via Raw Query
+    description: Raw SQL with user input
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags: [laravel, sql-injection]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "DB::raw\\s*\\(.*\\$"
+        - pattern: "DB::select\\s*\\(.*\\$"
+        - pattern: "whereRaw\\s*\\(.*\\$"
+        - pattern: "selectRaw\\s*\\(.*\\$"
+    remediation:
+      description: "Use Eloquent query builder with bindings"
+
+  - id: LARAVEL-003
+    name: Mass Assignment Vulnerability
+    description: Model without guarded or fillable
+    severity: high
+    confidence: medium
+    cwe: CWE-915
+    owasp: A01
+    tags: [laravel, mass-assignment]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "protected\\s+\\$guarded\\s*=\\s*\\[\\s*\\]"
+        - pattern: "Model::unguard\\s*\\(\\s*\\)"
+    remediation:
+      description: "Define $fillable or $guarded properties on models"
+
+  - id: LARAVEL-004
+    name: CSRF Protection Disabled
+    description: Route without CSRF protection
+    severity: high
+    confidence: high
+    cwe: CWE-352
+    owasp: A01
+    tags: [laravel, csrf]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "withoutMiddleware.*VerifyCsrfToken"
+        - pattern: "\\$except.*=.*\\["
+    remediation:
+      description: "Keep CSRF middleware enabled for state-changing routes"
+
+  - id: LARAVEL-005
+    name: Insecure File Upload
+    description: File upload without validation
+    severity: high
+    confidence: medium
+    cwe: CWE-434
+    owasp: A04
+    tags: [laravel, file-upload]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "\\$request->file\\s*\\(.*\\)->store(?!.*validate)"
+        - pattern: "move_uploaded_file\\s*\\("
+    remediation:
+      description: "Validate file type, size, and content before storing"
+
+  - id: LARAVEL-006
+    name: XSS via Unescaped Output
+    description: Blade template with unescaped output
+    severity: high
+    confidence: high
+    cwe: CWE-79
+    owasp: A03
+    tags: [laravel, xss, blade]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "\\{!!.*\\$.*!!\\}"
+        - pattern: "@php\\s+echo"
+    remediation:
+      description: "Use {{ }} for escaped output. Sanitize user input."
+
+  - id: LARAVEL-007
+    name: Hardcoded APP_KEY
+    description: APP_KEY hardcoded in configuration
+    severity: critical
+    confidence: high
+    cwe: CWE-798
+    owasp: A02
+    tags: [laravel, secret, config]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "'key'\\s*=>\\s*'base64:[A-Za-z0-9+/=]{40,}'"
+        - pattern: "APP_KEY\\s*=\\s*base64:[A-Za-z0-9+/=]{40,}"
+    remediation:
+      description: "Use php artisan key:generate and store in .env"
+
+  - id: LARAVEL-008
+    name: Insecure Cookie Settings
+    description: Cookie missing security attributes
+    severity: medium
+    confidence: high
+    cwe: CWE-614
+    owasp: A07
+    tags: [laravel, cookie, session]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "'secure'\\s*=>\\s*false"
+        - pattern: "'http_only'\\s*=>\\s*false"
+        - pattern: "SESSION_SECURE_COOKIE\\s*=\\s*false"
+    remediation:
+      description: "Set secure and http_only to true for cookies"
+
+  - id: LARAVEL-009
+    name: Command Injection
+    description: Shell command with user input
+    severity: critical
+    confidence: high
+    cwe: CWE-78
+    owasp: A03
+    tags: [laravel, command-injection]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "shell_exec\\s*\\(.*\\$"
+        - pattern: "exec\\s*\\(.*\\$"
+        - pattern: "system\\s*\\(.*\\$"
+        - pattern: "passthru\\s*\\(.*\\$"
+        - pattern: "Process::run\\s*\\(.*\\$"
+    remediation:
+      description: "Avoid shell commands with user input. Use allowlists."
+
+  - id: LARAVEL-010
+    name: Open Redirect
+    description: Redirect to user-controlled URL
+    severity: medium
+    confidence: medium
+    cwe: CWE-601
+    owasp: A10
+    tags: [laravel, redirect]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "redirect\\s*\\(.*\\$request->input"
+        - pattern: "Redirect::to\\s*\\(.*\\$"
+    remediation:
+      description: "Validate redirect URLs against allowlist"
+
+  - id: LARAVEL-011
+    name: Insecure Deserialization
+    description: Unserializing user input
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A08
+    tags: [laravel, deserialization]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "unserialize\\s*\\(.*\\$"
+    remediation:
+      description: "Avoid unserialize on user input. Use JSON instead."
+
+  - id: LARAVEL-012
+    name: Path Traversal
+    description: File operation with user-controlled path
+    severity: critical
+    confidence: high
+    cwe: CWE-22
+    owasp: A01
+    tags: [laravel, path-traversal]
+    languages: [php]
+    detection:
+      patterns:
+        - pattern: "file_get_contents\\s*\\(.*\\$"
+        - pattern: "Storage::get\\s*\\(.*\\$request"
+        - pattern: "readfile\\s*\\(.*\\$"
+    remediation:
+      description: "Validate and sanitize file paths. Use allowlists."

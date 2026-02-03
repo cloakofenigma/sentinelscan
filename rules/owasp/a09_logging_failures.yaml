@@ -1,0 +1,154 @@
+# OWASP A09:2025 - Security Logging and Monitoring Failures
+
+metadata:
+  category: A09
+  name: Security Logging and Monitoring Failures
+  description: "Rules for detecting logging and monitoring issues"
+  version: "1.0.0"
+
+rules:
+  - id: LOG-001
+    name: Sensitive Data in Logs
+    description: Logging sensitive information
+    severity: high
+    confidence: medium
+    cwe: CWE-532
+    owasp: A09
+    tags: [logging, sensitive-data]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "log(ger)?\\.(info|debug|warn|error).*password"
+        - pattern: "log(ger)?\\.(info|debug|warn|error).*secret"
+        - pattern: "log(ger)?\\.(info|debug|warn|error).*token"
+        - pattern: "log(ger)?\\.(info|debug|warn|error).*apiKey"
+        - pattern: "console\\.(log|info|warn|error).*password"
+          language: javascript
+        - pattern: "print\\(.*password"
+          language: python
+    remediation:
+      description: "Never log sensitive data. Mask or redact PII and credentials."
+
+  - id: LOG-002
+    name: Stack Trace Exposure
+    description: Stack trace exposed to users
+    severity: medium
+    confidence: high
+    cwe: CWE-209
+    owasp: A09
+    tags: [logging, error-handling]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "printStackTrace\\s*\\(\\)"
+          language: java
+        - pattern: "traceback\\.print_exc"
+          language: python
+        - pattern: "console\\.error\\s*\\(.*\\.stack"
+          language: javascript
+    remediation:
+      description: "Log exceptions server-side but return generic errors to users"
+
+  - id: LOG-003
+    name: Log Injection
+    description: User input in log messages without sanitization
+    severity: medium
+    confidence: medium
+    cwe: CWE-117
+    owasp: A09
+    tags: [logging, injection]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "logger\\.(info|debug|warn|error)\\s*\\(.*\\+.*getParameter"
+          language: java
+        - pattern: "logger\\.(info|debug|warn|error)\\s*\\(.*\\+.*request\\."
+          language: java
+        - pattern: "logging\\.(info|debug|warning|error).*%s.*request\\."
+          language: python
+    remediation:
+      description: "Sanitize user input before logging. Use structured logging."
+
+  - id: LOG-004
+    name: Missing Security Event Logging
+    description: Security-sensitive operation without logging
+    severity: medium
+    confidence: low
+    cwe: CWE-778
+    owasp: A09
+    tags: [logging, audit]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "authenticate.*(?!log|audit)"
+        - pattern: "login.*(?!log|audit)"
+        - pattern: "permission.*change.*(?!log|audit)"
+    remediation:
+      description: "Log all authentication events including failures"
+
+  - id: LOG-005
+    name: Debug Logging in Production
+    description: Debug or verbose logging enabled
+    severity: low
+    confidence: medium
+    cwe: CWE-215
+    owasp: A09
+    tags: [logging, debug]
+    languages: [java, python, javascript, xml, yaml, properties]
+    detection:
+      patterns:
+        - pattern: "logging\\.level\\.root\\s*=\\s*(DEBUG|TRACE)"
+        - pattern: "DEBUG\\s*=\\s*True"
+          language: python
+        - pattern: "debug\\s*:\\s*true"
+        - pattern: "log4j\\.rootLogger\\s*=\\s*DEBUG"
+    remediation:
+      description: "Disable debug logging in production environments"
+
+  - id: LOG-006
+    name: Insufficient Log Detail
+    description: Log message lacks context for investigation
+    severity: low
+    confidence: low
+    cwe: CWE-778
+    owasp: A09
+    tags: [logging, context]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "log(ger)?\\.(error|warn)\\s*\\(\\s*[\"'][^\"']{0,20}[\"']\\s*\\)"
+    remediation:
+      description: "Include relevant context in log messages for investigation"
+
+  - id: LOG-007
+    name: Log File Permissions
+    description: Log file with overly permissive permissions
+    severity: medium
+    confidence: medium
+    cwe: CWE-532
+    owasp: A09
+    tags: [logging, permissions]
+    languages: [java, python, yaml]
+    detection:
+      patterns:
+        - pattern: "FileHandler.*\\.log.*777"
+        - pattern: "chmod.*777.*\\.log"
+        - pattern: "log.*permissions.*0777"
+    remediation:
+      description: "Restrict log file permissions to authorized users only"
+
+  - id: LOG-008
+    name: Missing Request ID
+    description: Requests not tagged with unique identifier
+    severity: info
+    confidence: low
+    cwe: CWE-778
+    owasp: A09
+    tags: [logging, tracing]
+    languages: [java, python, javascript]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "logger\\.info.*request(?!.*requestId|.*correlationId|.*traceId)"
+    remediation:
+      description: "Add unique request ID to all log messages for tracing"

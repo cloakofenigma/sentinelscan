@@ -1,0 +1,224 @@
+# Phase 2: OWASP A05 Injection Rules (Fixed YAML)
+# Combines SQL Injection, Command Injection, XSS, and other injection attacks
+
+metadata:
+  category: "A05:2025"
+  category_name: "Injection"
+  description: "Rules for detecting injection vulnerabilities"
+  version: "2.0.0"
+
+rules:
+  # ============================================
+  # SQL Injection Rules
+  # ============================================
+
+  - id: "A05-SQLI-001"
+    name: "SQL Injection via String Concatenation"
+    description: "SQL query built using string concatenation with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages: [java, python, javascript, php, csharp]
+    detection_mode: pattern
+    patterns:
+      - pattern: "(executeQuery|executeUpdate|execute)\\s*\\(\\s*.*\\s*\\+\\s*"
+        type: regex
+        message: "SQL query with string concatenation"
+      - pattern: "Statement\\s+\\w+\\s*=.*createStatement"
+        type: regex
+        message: "Using Statement instead of PreparedStatement"
+      - pattern: "(execute|executemany)\\s*\\(\\s*f[\"']"
+        type: regex
+        message: "SQL query with f-string formatting"
+      - pattern: "(query|execute)\\s*\\(\\s*`.*\\$\\{"
+        type: regex
+        message: "SQL query with template literal"
+    remediation:
+      description: "Use parameterized queries or prepared statements"
+    tags: [sql-injection, owasp-a05, injection]
+
+  - id: "A05-SQLI-002"
+    name: "MyBatis Dynamic SQL"
+    description: "MyBatis using ${} for parameter substitution enables SQL injection"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages: [java, xml]
+    detection_mode: pattern
+    patterns:
+      - pattern: "(select|insert|update|delete|where|and|or|order by|group by)[^<]*\\$\\{[^}]+\\}"
+        type: regex
+        message: "MyBatis ${} parameter substitution in SQL context"
+    remediation:
+      description: "Use #{} for parameter binding instead of ${}"
+    tags: [sql-injection, mybatis, owasp-a05]
+
+  # ============================================
+  # Command Injection Rules
+  # ============================================
+
+  - id: "A05-CMDI-001"
+    name: "OS Command Injection"
+    description: "Potential OS command execution with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-78"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\("
+        type: regex
+        message: "Runtime.exec command execution"
+      - pattern: "ProcessBuilder\\s*\\("
+        type: regex
+        message: "ProcessBuilder command execution"
+      - pattern: "os\\.system\\s*\\("
+        type: regex
+        message: "os.system command execution"
+      - pattern: "subprocess\\.(call|run|Popen)\\s*\\("
+        type: regex
+        message: "subprocess command execution"
+      - pattern: "(exec|shell_exec|system|passthru|popen)\\s*\\("
+        type: regex
+        message: "PHP command execution function"
+    remediation:
+      description: "Avoid executing shell commands with user input. Use safe APIs or allowlists."
+    tags: [command-injection, owasp-a05, injection]
+
+  # ============================================
+  # XSS Rules
+  # ============================================
+
+  - id: "A05-XSS-001"
+    name: "Reflected XSS"
+    description: "Unsanitized user input reflected in response"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-79"
+    languages: [java, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "getWriter\\(\\)\\.(print|println|write)\\s*\\("
+        type: regex
+        message: "Direct output to response writer"
+      - pattern: "innerHTML\\s*="
+        type: regex
+        message: "Direct innerHTML assignment"
+      - pattern: "document\\.write\\s*\\("
+        type: regex
+        message: "document.write usage"
+      - pattern: "\\$\\(.*\\)\\.html\\s*\\("
+        type: regex
+        message: "jQuery .html() usage"
+      - pattern: "echo\\s+\\$_(GET|POST|REQUEST|COOKIE)"
+        type: regex
+        message: "Direct echo of user input"
+    remediation:
+      description: "Encode all user input before rendering. Use Content-Security-Policy."
+    tags: [xss, owasp-a05, injection]
+
+  # ============================================
+  # LDAP Injection Rules
+  # ============================================
+
+  - id: "A05-LDAP-001"
+    name: "LDAP Injection"
+    description: "LDAP query with unsanitized user input"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-90"
+    languages: [java, python, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "DirContext.*search\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "LDAP search with string concatenation"
+      - pattern: "ldap_(search|bind|compare)\\s*\\(.*\\$"
+        type: regex
+        message: "PHP LDAP query with variable"
+    remediation:
+      description: "Sanitize LDAP inputs by escaping special characters"
+    tags: [ldap-injection, owasp-a05, injection]
+
+  # ============================================
+  # Template Injection Rules
+  # ============================================
+
+  - id: "A05-SSTI-001"
+    name: "Server-Side Template Injection"
+    description: "Template rendering with user-controlled input"
+    severity: critical
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-94"
+    languages: [python, java, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "render_template_string\\s*\\("
+        type: regex
+        message: "Flask render_template_string (SSTI risk)"
+      - pattern: "jinja2\\.Template\\s*\\("
+        type: regex
+        message: "Jinja2 template from string"
+      - pattern: "eval\\s*\\(.*render"
+        type: regex
+        message: "Template with eval"
+    remediation:
+      description: "Never pass user input directly to template engines. Use static templates with context."
+    tags: [ssti, template-injection, owasp-a05]
+
+  # ============================================
+  # XPath Injection Rules
+  # ============================================
+
+  - id: "A05-XPATH-001"
+    name: "XPath Injection"
+    description: "XPath query with unsanitized user input"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-643"
+    languages: [java, python, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "XPath\\.compile\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "XPath compile with concatenation"
+      - pattern: "xpath\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "XPath query with concatenation"
+    remediation:
+      description: "Use parameterized XPath queries or sanitize input"
+    tags: [xpath-injection, owasp-a05, injection]
+
+  # ============================================
+  # Expression Language Injection
+  # ============================================
+
+  - id: "A05-EL-001"
+    name: "Expression Language Injection"
+    description: "EL/OGNL injection vulnerability"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-917"
+    languages: [java]
+    detection_mode: pattern
+    patterns:
+      - pattern: "ValueExpression.*createValueExpression"
+        type: regex
+        message: "EL value expression creation"
+      - pattern: "OgnlUtil.*getValue"
+        type: regex
+        message: "OGNL expression evaluation"
+      - pattern: "SpelExpressionParser.*parseExpression"
+        type: regex
+        message: "SpEL expression parsing"
+    remediation:
+      description: "Never evaluate user-controlled EL/OGNL expressions"
+    tags: [el-injection, ognl, spel, owasp-a05]

@@ -1,0 +1,477 @@
+# A05:2025 - Injection Rules
+# OWASP Top 10 Category: Injection Vulnerabilities
+
+metadata:
+  category: "A05:2025"
+  category_name: "Injection"
+  description: "Rules for detecting injection vulnerabilities including SQL, NoSQL, OS Command, LDAP, XPath, and Template injection"
+  version: "1.0.0"
+  author: "Security Analyzer Team"
+
+rules:
+  # ============================================
+  # SQL Injection Rules
+  # ============================================
+
+  - id: "A05-SQLI-001"
+    name: "SQL Injection via String Concatenation"
+    description: "SQL query built using string concatenation with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages:
+      - java
+      - python
+      - javascript
+      - typescript
+      - php
+      - csharp
+    detection_mode: pattern
+    patterns:
+      # Java JDBC
+      - pattern: "(executeQuery|executeUpdate|execute)\\s*\\(\\s*.*\\s*\\+\\s*"
+        type: regex
+        message: "SQL query with string concatenation"
+      - pattern: "Statement\\s+\\w+\\s*=.*createStatement"
+        type: regex
+        message: "Using Statement instead of PreparedStatement"
+
+      # Python
+      - pattern: "(execute|executemany)\\s*\\(\\s*f[\"']"
+        type: regex
+        message: "SQL query with f-string formatting"
+      - pattern: "(execute|executemany)\\s*\\(\\s*[\"'].*%s.*[\"'].*%\\s*\\("
+        type: regex
+        message: "SQL query with % formatting"
+      - pattern: "(execute|executemany)\\s*\\(\\s*[\"'].*\\{\\}.*[\"']\\.format\\s*\\("
+        type: regex
+        message: "SQL query with .format()"
+
+      # JavaScript/Node
+      - pattern: "(query|execute)\\s*\\(\\s*`.*\\$\\{"
+        type: regex
+        message: "SQL query with template literal"
+      - pattern: "(query|execute)\\s*\\(\\s*[\"'].*\\s*\\+\\s*"
+        type: regex
+        message: "SQL query with concatenation"
+
+      # PHP
+      - pattern: "(mysql_query|mysqli_query|pg_query)\\s*\\(\\s*[\"'].*\\s*\\.\\s*\\$"
+        type: regex
+        message: "SQL query with variable concatenation"
+      - pattern: "\\$\\w+->query\\s*\\(\\s*[\"'].*\\s*\\.\\s*\\$"
+        type: regex
+        message: "PDO query with concatenation"
+
+      # C#
+      - pattern: "SqlCommand\\s*\\([^)]*\\+\\s*"
+        type: regex
+        message: "SqlCommand with concatenation"
+    remediation:
+      description: "Use parameterized queries or prepared statements"
+    tags:
+      - sql-injection
+      - database
+      - critical
+    enabled: true
+
+  - id: "A05-SQLI-002"
+    name: "MyBatis String Interpolation SQL Injection"
+    description: "MyBatis mapper uses ${} instead of #{} allowing SQL injection"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages:
+      - java
+      - xml
+    frameworks:
+      - mybatis
+      - spring
+    file_patterns:
+      - "*Mapper.xml"
+      - "*Repository.xml"
+      - "*Dao.xml"
+    detection_mode: pattern
+    patterns:
+      - pattern: "(select|insert|update|delete|where|and|or|order by|group by)[^<]*\\$\\{[^}]+\\}"
+        type: regex
+        message: "MyBatis ${} interpolation found - vulnerable to SQL injection"
+    remediation:
+      description: "Replace ${} with #{} for parameterized queries"
+    tags:
+      - sql-injection
+      - mybatis
+      - critical
+    enabled: true
+
+  - id: "A05-SQLI-003"
+    name: "JPA/Hibernate Native Query Injection"
+    description: "JPA native query built with string concatenation"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages:
+      - java
+    frameworks:
+      - jpa
+      - hibernate
+      - spring-data
+    detection_mode: pattern
+    patterns:
+      - pattern: "createNativeQuery\\s*\\(\\s*[\"'].*\\s*\\+\\s*"
+        type: regex
+        message: "Native query with string concatenation"
+      - pattern: "@Query\\s*\\([^)]*nativeQuery\\s*=\\s*true[^)]*\\+\\s*"
+        type: regex
+        message: "Native @Query with concatenation"
+      - pattern: "createQuery\\s*\\(\\s*[\"'].*\\s*\\+\\s*"
+        type: regex
+        message: "JPQL query with string concatenation"
+    remediation:
+      description: "Use named parameters in JPA queries"
+    tags:
+      - sql-injection
+      - jpa
+      - hibernate
+    enabled: true
+
+  - id: "A05-SQLI-004"
+    name: "Django Raw SQL Injection"
+    description: "Django raw SQL query with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-89"
+    languages:
+      - python
+    frameworks:
+      - django
+    detection_mode: pattern
+    patterns:
+      - pattern: "\\.raw\\s*\\(\\s*f[\"']"
+        type: regex
+        message: "Django raw() with f-string"
+      - pattern: "\\.raw\\s*\\(\\s*[\"'].*%.*[\"'].*%\\s*"
+        type: regex
+        message: "Django raw() with % formatting"
+      - pattern: "\\.extra\\s*\\("
+        type: regex
+        message: "Django extra() usage - deprecated and risky"
+      - pattern: "cursor\\.execute\\s*\\(\\s*f[\"']"
+        type: regex
+        message: "Direct cursor.execute with f-string"
+    remediation:
+      description: "Use parameterized queries with Django ORM"
+    tags:
+      - sql-injection
+      - django
+    enabled: true
+
+  # ============================================
+  # NoSQL Injection Rules
+  # ============================================
+
+  - id: "A05-NOSQL-001"
+    name: "MongoDB NoSQL Injection"
+    description: "MongoDB query with potential operator injection"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-943"
+    languages:
+      - javascript
+      - typescript
+      - python
+    frameworks:
+      - mongodb
+      - mongoose
+    detection_mode: pattern
+    patterns:
+      - pattern: "\\.find\\s*\\(\\s*\\{\\s*\\w+\\s*:\\s*req\\.(body|query|params)"
+        type: regex
+        message: "MongoDB find with request data"
+      - pattern: "\\.findOne\\s*\\(\\s*\\{\\s*\\w+\\s*:\\s*req\\."
+        type: regex
+        message: "MongoDB findOne with request data"
+      - pattern: "\\.find\\s*\\(\\s*\\{\\s*[\"']?\\w+[\"']?\\s*:\\s*request\\."
+        type: regex
+        message: "PyMongo find with request data"
+    remediation:
+      description: "Validate input type and sanitize for MongoDB operators"
+    tags:
+      - nosql-injection
+      - mongodb
+    enabled: true
+
+  # ============================================
+  # Command Injection Rules
+  # ============================================
+
+  - id: "A05-CMD-001"
+    name: "OS Command Injection"
+    description: "System command executed with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-78"
+    languages:
+      - java
+      - python
+      - javascript
+      - typescript
+      - php
+    detection_mode: pattern
+    patterns:
+      - pattern: "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\("
+        type: regex
+        message: "Runtime.exec command execution"
+      - pattern: "ProcessBuilder\\s*\\("
+        type: regex
+        message: "ProcessBuilder command execution"
+      - pattern: "os\\.system\\s*\\("
+        type: regex
+        message: "os.system command execution"
+      - pattern: "subprocess\\.(call|run|Popen)\\s*\\("
+        type: regex
+        message: "subprocess command execution"
+      - pattern: "(exec|shell_exec|system|passthru|popen)\\s*\\("
+        type: regex
+        message: "PHP command execution function"
+    remediation:
+      description: "Avoid command execution with user input; if necessary, use allowlists"
+    tags:
+      - command-injection
+      - rce
+      - critical
+    enabled: true
+
+  - id: "A05-CMD-002"
+    name: "Shell Command with User Input"
+    description: "Shell command constructed with user input (shell=True)"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-78"
+    languages:
+      - python
+    detection_mode: pattern
+    patterns:
+      - pattern: "subprocess\\.(call|run|Popen)\\s*\\([^)]*shell\\s*=\\s*True"
+        type: regex
+        message: "subprocess with shell=True"
+      - pattern: "os\\.(system|popen)\\s*\\("
+        type: regex
+        message: "os.system or os.popen usage"
+    remediation:
+      description: "Use subprocess with shell=False and list arguments"
+    tags:
+      - command-injection
+      - shell
+    enabled: true
+
+  # ============================================
+  # XSS (Cross-Site Scripting) Rules
+  # ============================================
+
+  - id: "A05-XSS-001"
+    name: "Reflected XSS via Unescaped Output"
+    description: "User input rendered in HTML without encoding"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-79"
+    languages:
+      - java
+      - python
+      - javascript
+      - php
+    detection_mode: pattern
+    patterns:
+      - pattern: "out\\.(print|println)\\s*\\("
+        type: regex
+        message: "Direct output to response"
+      - pattern: "\\.innerHTML\\s*="
+        type: regex
+        message: "innerHTML assignment"
+      - pattern: "document\\.write\\s*\\("
+        type: regex
+        message: "document.write usage"
+      - pattern: "echo\\s+\\$_(GET|POST|REQUEST|COOKIE)"
+        type: regex
+        message: "Direct echo of user input"
+    remediation:
+      description: "Always encode user input before rendering in HTML"
+    tags:
+      - xss
+      - reflected
+    enabled: true
+
+  - id: "A05-XSS-002"
+    name: "Django Template XSS via |safe Filter"
+    description: "Django template uses |safe filter on user-controlled data"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-79"
+    languages:
+      - python
+    frameworks:
+      - django
+    file_patterns:
+      - "*.html"
+      - "templates/**/*.html"
+    detection_mode: pattern
+    patterns:
+      - pattern: "\\{\\{\\s*\\w+\\s*\\|\\s*safe\\s*\\}\\}"
+        type: regex
+        message: "Template variable with |safe filter"
+      - pattern: "mark_safe\\s*\\("
+        type: regex
+        message: "mark_safe() usage"
+      - pattern: "SafeString\\s*\\("
+        type: regex
+        message: "SafeString() usage"
+    remediation:
+      description: "Avoid |safe filter; use autoescape or explicit escaping"
+    tags:
+      - xss
+      - django
+      - template
+    enabled: true
+
+  - id: "A05-XSS-003"
+    name: "React dangerouslySetInnerHTML"
+    description: "React component uses dangerouslySetInnerHTML with user data"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-79"
+    languages:
+      - javascript
+      - typescript
+    frameworks:
+      - react
+    file_patterns:
+      - "*.jsx"
+      - "*.tsx"
+    detection_mode: pattern
+    patterns:
+      - pattern: "dangerouslySetInnerHTML\\s*=\\s*\\{\\s*\\{\\s*__html\\s*:"
+        type: regex
+        message: "dangerouslySetInnerHTML usage"
+    remediation:
+      description: "Avoid dangerouslySetInnerHTML; use DOMPurify if necessary"
+    tags:
+      - xss
+      - react
+    enabled: true
+
+  # ============================================
+  # Template Injection Rules
+  # ============================================
+
+  - id: "A05-SSTI-001"
+    name: "Server-Side Template Injection"
+    description: "User input used in template rendering without sanitization"
+    severity: critical
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-1336"
+    languages:
+      - python
+      - java
+      - javascript
+    detection_mode: pattern
+    patterns:
+      - pattern: "render_template_string\\s*\\([^)]*\\+\\s*"
+        type: regex
+        message: "Jinja2 render_template_string with concatenation"
+      - pattern: "Template\\s*\\(\\s*[^)]*\\+\\s*"
+        type: regex
+        message: "Template constructor with concatenation"
+      - pattern: "templateEngine\\.process\\s*\\([^)]*\\+\\s*"
+        type: regex
+        message: "Thymeleaf process with concatenation"
+      - pattern: "ejs\\.render\\s*\\([^)]*\\+\\s*"
+        type: regex
+        message: "EJS render with concatenation"
+      - pattern: "pug\\.render\\s*\\([^)]*\\+\\s*"
+        type: regex
+        message: "Pug render with concatenation"
+    remediation:
+      description: "Never include user input in template strings; pass as variables"
+    tags:
+      - ssti
+      - template-injection
+      - critical
+    enabled: true
+
+  # ============================================
+  # LDAP Injection Rules
+  # ============================================
+
+  - id: "A05-LDAP-001"
+    name: "LDAP Injection"
+    description: "LDAP query built with user input"
+    severity: high
+    confidence: medium
+    owasp_category: "A05:2025"
+    cwe: "CWE-90"
+    languages:
+      - java
+      - python
+      - csharp
+    detection_mode: pattern
+    patterns:
+      - pattern: "search\\s*\\([^)]*\\+\\s*.*\\)\\s*\\)"
+        type: regex
+        message: "LDAP search with concatenation"
+      - pattern: "NamingEnumeration.*search.*\\+\\s*"
+        type: regex
+        message: "JNDI LDAP search with concatenation"
+      - pattern: "search_s\\s*\\([^)]*%\\s*"
+        type: regex
+        message: "python-ldap search with formatting"
+    remediation:
+      description: "Escape LDAP special characters in user input"
+    tags:
+      - ldap-injection
+    enabled: true
+
+  # ============================================
+  # eval() and Code Execution Rules
+  # ============================================
+
+  - id: "A05-EVAL-001"
+    name: "Dynamic Code Execution with User Input"
+    description: "eval() or similar function called with user-controlled data"
+    severity: critical
+    confidence: high
+    owasp_category: "A05:2025"
+    cwe: "CWE-95"
+    languages:
+      - javascript
+      - typescript
+      - python
+      - php
+    detection_mode: pattern
+    patterns:
+      - pattern: "eval\\s*\\("
+        type: regex
+        message: "eval() usage"
+      - pattern: "exec\\s*\\("
+        type: regex
+        message: "exec() usage"
+      - pattern: "new Function\\s*\\("
+        type: regex
+        message: "new Function() usage"
+    remediation:
+      description: "Never use eval with user input; use safe alternatives"
+    tags:
+      - code-injection
+      - eval
+      - critical
+    enabled: true

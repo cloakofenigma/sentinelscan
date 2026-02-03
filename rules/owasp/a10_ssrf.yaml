@@ -1,0 +1,153 @@
+# OWASP A10:2025 - Server-Side Request Forgery (SSRF)
+
+metadata:
+  category: A10
+  name: Server-Side Request Forgery
+  description: "Rules for detecting SSRF vulnerabilities"
+  version: "1.0.0"
+
+rules:
+  - id: SSRF-001
+    name: URL from User Input
+    description: HTTP request made to user-controlled URL
+    severity: high
+    confidence: medium
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, url]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "new URL\\s*\\(.*getParameter"
+          language: java
+        - pattern: "new URL\\s*\\(.*request\\."
+          language: java
+        - pattern: "RestTemplate.*getForObject\\s*\\(.*\\+"
+          language: java
+        - pattern: "WebClient.*uri\\s*\\(.*\\+"
+          language: java
+        - pattern: "HttpClient.*send\\s*\\(.*request"
+          language: java
+        - pattern: "requests\\.(get|post|put|delete)\\s*\\(.*\\+"
+          language: python
+        - pattern: "urllib\\.request\\.urlopen\\s*\\("
+          language: python
+        - pattern: "fetch\\s*\\(.*\\+"
+          language: javascript
+        - pattern: "axios\\.(get|post|put|delete)\\s*\\(.*\\+"
+          language: javascript
+    remediation:
+      description: "Validate and sanitize URLs. Use allowlists for permitted hosts."
+
+  - id: SSRF-002
+    name: Internal Network Access Pattern
+    description: Request pattern that could access internal network
+    severity: high
+    confidence: medium
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, internal-network]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "[\"']localhost[\"']|[\"']127\\.0\\.0\\.1[\"']|[\"']0\\.0\\.0\\.0[\"']"
+        - pattern: "[\"']192\\.168\\.\\d+\\.\\d+[\"']"
+        - pattern: "[\"']10\\.\\d+\\.\\d+\\.\\d+[\"']"
+        - pattern: "[\"']172\\.(1[6-9]|2[0-9]|3[0-1])\\.\\d+\\.\\d+[\"']"
+        - pattern: "[\"']169\\.254\\.\\d+\\.\\d+[\"']"
+    remediation:
+      description: "Block requests to private IP ranges and metadata endpoints"
+
+  - id: SSRF-003
+    name: Cloud Metadata Endpoint Access
+    description: Potential access to cloud metadata service
+    severity: critical
+    confidence: high
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, cloud, metadata]
+    languages: [java, python, javascript, xml, yaml]
+    detection:
+      patterns:
+        - pattern: "169\\.254\\.169\\.254"
+        - pattern: "metadata\\.google\\.internal"
+        - pattern: "metadata\\.azure\\.com"
+        - pattern: "instance-data/latest"
+    remediation:
+      description: "Never allow user input to construct URLs for cloud metadata"
+
+  - id: SSRF-004
+    name: Open Redirect
+    description: Redirect to user-controlled URL
+    severity: medium
+    confidence: medium
+    cwe: CWE-601
+    owasp: A10
+    tags: [ssrf, redirect]
+    languages: [java, python, javascript, php]
+    detection:
+      patterns:
+        - pattern: "sendRedirect\\s*\\(.*getParameter"
+          language: java
+        - pattern: "response\\.redirect\\s*\\(.*req\\."
+          language: javascript
+        - pattern: "HttpResponseRedirect\\s*\\(.*request\\."
+          language: python
+        - pattern: "header\\s*\\(\\s*[\"']Location.*\\$"
+          language: php
+    remediation:
+      description: "Validate redirect URLs against an allowlist of trusted domains"
+
+  - id: SSRF-005
+    name: DNS Rebinding Vulnerability
+    description: URL validation vulnerable to DNS rebinding
+    severity: high
+    confidence: low
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, dns-rebinding]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "InetAddress\\.getByName.*(?!.*getHostAddress)"
+          language: java
+        - pattern: "socket\\.gethostbyname\\s*\\("
+          language: python
+    remediation:
+      description: "Resolve DNS and validate IP before making request"
+
+  - id: SSRF-006
+    name: URL Protocol Handler
+    description: URL with dangerous protocol handler
+    severity: high
+    confidence: medium
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, protocol]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "file://"
+        - pattern: "gopher://"
+        - pattern: "dict://"
+        - pattern: "ftp://"
+        - pattern: "ldap://"
+    remediation:
+      description: "Restrict allowed URL protocols to http and https only"
+
+  - id: SSRF-007
+    name: Webhook URL Validation
+    description: Webhook configured with user-controlled URL
+    severity: medium
+    confidence: medium
+    cwe: CWE-918
+    owasp: A10
+    tags: [ssrf, webhook]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "webhookUrl\\s*=.*request\\."
+        - pattern: "callbackUrl\\s*=.*getParameter"
+        - pattern: "notificationUrl\\s*=.*req\\."
+    remediation:
+      description: "Validate webhook URLs against allowlist. Implement retry limits."

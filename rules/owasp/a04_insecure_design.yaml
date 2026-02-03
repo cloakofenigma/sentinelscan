@@ -1,0 +1,160 @@
+# OWASP A04:2025 - Insecure Design
+
+metadata:
+  category: A04
+  name: Insecure Design
+  description: "Rules for detecting insecure design patterns"
+  version: "1.0.0"
+
+rules:
+  - id: DESIGN-001
+    name: Missing Input Validation
+    description: User input used without validation
+    severity: low
+    confidence: low
+    cwe: CWE-20
+    owasp: A04
+    tags: [design, input-validation]
+    languages: [java, python, javascript]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "@RequestBody(?!.*@Valid)\\s+\\w+Request"
+          language: java
+    remediation:
+      description: "Validate and sanitize all user input at system boundaries"
+
+  - id: DESIGN-002
+    name: Missing Output Encoding
+    description: Output not encoded before rendering
+    severity: medium
+    confidence: medium
+    cwe: CWE-116
+    owasp: A04
+    tags: [design, output-encoding]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "response\\.getWriter\\(\\)\\.write\\s*\\("
+          language: java
+        - pattern: "res\\.send\\s*\\(.*req\\."
+          language: javascript
+        - pattern: "HttpResponse\\s*\\(.*request\\."
+          language: python
+    remediation:
+      description: "Encode all output appropriate to the context (HTML, URL, JS, CSS)"
+
+  - id: DESIGN-003
+    name: Race Condition
+    description: Potential race condition in shared resource access
+    severity: low
+    confidence: low
+    cwe: CWE-362
+    owasp: A04
+    tags: [design, race-condition, concurrency]
+    languages: [java, python]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "static\\s+(?!final)\\w+\\s+\\w+\\s*=(?!.*synchronized)"
+          language: java
+    remediation:
+      description: "Use proper synchronization or atomic operations for shared resources"
+
+  - id: DESIGN-004
+    name: Insecure Deserialization
+    description: Deserializing untrusted data without validation
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A04
+    tags: [design, deserialization]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "ObjectInputStream\\s*\\("
+          language: java
+        - pattern: "readObject\\s*\\(\\)"
+          language: java
+        - pattern: "pickle\\.loads?\\s*\\("
+          language: python
+        - pattern: "yaml\\.load\\s*\\([^)]*Loader\\s*=\\s*yaml\\.Loader"
+          language: python
+        - pattern: "unserialize\\s*\\("
+          language: php
+    remediation:
+      description: "Avoid deserializing untrusted data. Use safe formats like JSON."
+
+  - id: DESIGN-005
+    name: Missing Error Handling
+    description: Empty catch block or missing error handling
+    severity: low
+    confidence: high
+    cwe: CWE-390
+    owasp: A04
+    tags: [design, error-handling]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "catch\\s*\\([^)]+\\)\\s*\\{\\s*\\}"
+          language: java
+        - pattern: "except:\\s*pass"
+          language: python
+        - pattern: "catch\\s*\\([^)]*\\)\\s*\\{\\s*\\}"
+          language: javascript
+    remediation:
+      description: "Properly handle all exceptions. Log errors for debugging."
+
+  - id: DESIGN-006
+    name: Unbounded Resource Allocation
+    description: Resource allocation without limits
+    severity: medium
+    confidence: medium
+    cwe: CWE-770
+    owasp: A04
+    tags: [design, resource, dos]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "new\\s+\\w+\\[.*request"
+          language: java
+        - pattern: "while\\s*\\(\\s*true\\s*\\)"
+        - pattern: "for\\s*\\(\\s*;\\s*;\\s*\\)"
+          language: java
+    remediation:
+      description: "Set appropriate limits on resource allocation"
+
+  - id: DESIGN-007
+    name: Sensitive Data in URL
+    description: Sensitive data passed via URL parameter
+    severity: medium
+    confidence: medium
+    cwe: CWE-598
+    owasp: A04
+    tags: [design, sensitive-data, url]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "\\?.*password="
+        - pattern: "\\?.*token="
+        - pattern: "\\?.*apikey="
+        - pattern: "\\?.*secret="
+    remediation:
+      description: "Use POST body for sensitive data. Never include in URLs."
+
+  - id: DESIGN-008
+    name: Insufficient Logging
+    description: Security-sensitive operation without logging
+    severity: info
+    confidence: low
+    cwe: CWE-778
+    owasp: A04
+    tags: [design, logging, audit]
+    languages: [java, python, javascript]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "deleteUser.*(?!log|audit)"
+        - pattern: "adminAction.*(?!log|audit)"
+    remediation:
+      description: "Log all security-sensitive operations for audit purposes"

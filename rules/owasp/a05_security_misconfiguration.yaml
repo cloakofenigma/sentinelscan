@@ -1,0 +1,200 @@
+# OWASP A05:2025 - Security Misconfiguration
+
+metadata:
+  category: A05
+  name: Security Misconfiguration
+  description: "Rules for detecting security misconfiguration"
+  version: "1.0.0"
+
+rules:
+  - id: MISCONFIG-001
+    name: Debug Mode Enabled
+    description: Debug mode enabled in production configuration
+    severity: medium
+    confidence: high
+    cwe: CWE-489
+    owasp: A05
+    tags: [misconfiguration, debug]
+    languages: [java, python, javascript, xml, yaml]
+    detection:
+      patterns:
+        - pattern: "DEBUG\\s*=\\s*True"
+          language: python
+        - pattern: "debug\\s*:\\s*true"
+        - pattern: "logging\\.level\\.root\\s*=\\s*(DEBUG|TRACE)"
+        - pattern: "spring\\.profiles\\.active\\s*=\\s*dev"
+    remediation:
+      description: "Disable debug mode in production environments"
+
+  - id: MISCONFIG-002
+    name: Default Credentials
+    description: Default or example credentials in configuration
+    severity: critical
+    confidence: high
+    cwe: CWE-798
+    owasp: A05
+    tags: [misconfiguration, credentials]
+    languages: [java, python, javascript, xml, yaml, properties]
+    detection:
+      patterns:
+        - pattern: "password\\s*=\\s*(admin|password|123456|root|default)"
+        - pattern: "username\\s*=\\s*(admin|root|user|test)"
+        - pattern: "secret\\s*=\\s*(secret|changeme|example)"
+    remediation:
+      description: "Replace all default credentials with strong, unique values"
+
+  - id: MISCONFIG-003
+    name: Exposed Stack Trace
+    description: Stack traces exposed to users
+    severity: medium
+    confidence: high
+    cwe: CWE-209
+    owasp: A05
+    tags: [misconfiguration, error-handling]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "printStackTrace\\s*\\(\\)"
+          language: java
+        - pattern: "traceback\\.print_exc"
+          language: python
+        - pattern: "console\\.error\\s*\\(.*err\\.stack"
+          language: javascript
+    remediation:
+      description: "Log stack traces server-side. Return generic errors to users."
+
+  - id: MISCONFIG-004
+    name: Security Headers Missing
+    description: Missing security response headers
+    severity: medium
+    confidence: medium
+    cwe: CWE-693
+    owasp: A05
+    tags: [misconfiguration, headers]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "contentTypeOptions.*disable"
+          language: java
+        - pattern: "frameOptions.*disable"
+          language: java
+        - pattern: "xssProtection.*disable"
+          language: java
+    remediation:
+      description: "Enable security headers: X-Content-Type-Options, X-Frame-Options, X-XSS-Protection"
+
+  - id: MISCONFIG-005
+    name: Insecure Cookie Configuration
+    description: Cookie missing security attributes
+    severity: medium
+    confidence: high
+    cwe: CWE-614
+    owasp: A05
+    tags: [misconfiguration, cookie]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "setHttpOnly\\s*\\(\\s*false"
+          language: java
+        - pattern: "setSecure\\s*\\(\\s*false"
+          language: java
+        - pattern: "httpOnly\\s*:\\s*false"
+        - pattern: "secure\\s*:\\s*false"
+    remediation:
+      description: "Set HttpOnly, Secure, and SameSite attributes on all cookies"
+
+  - id: MISCONFIG-006
+    name: Permissive File Permissions
+    description: File created with overly permissive permissions
+    severity: medium
+    confidence: medium
+    cwe: CWE-732
+    owasp: A05
+    tags: [misconfiguration, permissions]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "chmod\\s*\\(.*777"
+        - pattern: "os\\.chmod.*0o777"
+          language: python
+        - pattern: "PosixFilePermission.*OTHERS"
+          language: java
+    remediation:
+      description: "Use least privilege principle. Restrict file permissions."
+
+  - id: MISCONFIG-007
+    name: Verbose Error Messages
+    description: Detailed error messages exposed to users
+    severity: info
+    confidence: low
+    cwe: CWE-209
+    owasp: A05
+    tags: [misconfiguration, error-handling]
+    languages: [java, python, javascript]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "response\\.getWriter.*e\\.getMessage\\(\\)"
+          language: java
+        - pattern: "return.*str\\s*\\(\\s*e\\s*\\)"
+          language: python
+        - pattern: "res\\.send.*error\\.message"
+          language: javascript
+    remediation:
+      description: "Return generic error messages to users"
+
+  - id: MISCONFIG-008
+    name: Exposed Management Endpoint
+    description: Management or actuator endpoint exposed without authentication
+    severity: high
+    confidence: high
+    cwe: CWE-306
+    owasp: A05
+    tags: [misconfiguration, actuator, management]
+    languages: [java, yaml, properties]
+    detection:
+      patterns:
+        - pattern: "management\\.endpoints\\.web\\.exposure\\.include\\s*=\\s*\\*"
+        - pattern: "management\\.security\\.enabled\\s*=\\s*false"
+        - pattern: "endpoints\\.enabled\\s*=\\s*true"
+    remediation:
+      description: "Restrict management endpoints to authenticated admin users only"
+
+  - id: MISCONFIG-009
+    name: HTTPS Not Enforced
+    description: Application not enforcing HTTPS
+    severity: medium
+    confidence: medium
+    cwe: CWE-319
+    owasp: A05
+    tags: [misconfiguration, https, transport]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "requiresSecure\\s*\\(\\s*\\)\\.disable"
+          language: java
+        - pattern: "SECURE_SSL_REDIRECT\\s*=\\s*False"
+          language: python
+        - pattern: "http://"
+    remediation:
+      description: "Enforce HTTPS for all connections. Redirect HTTP to HTTPS."
+
+  - id: MISCONFIG-010
+    name: XML External Entity Processing
+    description: XML parser configured to process external entities
+    severity: critical
+    confidence: high
+    cwe: CWE-611
+    owasp: A05
+    tags: [misconfiguration, xxe, xml]
+    languages: [java, python]
+    detection:
+      patterns:
+        - pattern: "setFeature.*FEATURE_SECURE_PROCESSING.*false"
+          language: java
+        - pattern: "setExpandEntityReferences\\s*\\(\\s*true"
+          language: java
+        - pattern: "XMLParser\\s*\\([^)]*resolve_entities\\s*=\\s*True"
+          language: python
+    remediation:
+      description: "Disable external entity processing in XML parsers"

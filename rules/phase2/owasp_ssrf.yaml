@@ -1,0 +1,130 @@
+# Phase 2: OWASP A10 Server-Side Request Forgery (SSRF) Rules
+
+metadata:
+  category: "A10:2025"
+  category_name: "Server-Side Request Forgery"
+  description: "Rules for detecting SSRF vulnerabilities"
+  version: "2.0.0"
+
+rules:
+  # ============================================
+  # URL Fetching
+  # ============================================
+
+  - id: "A10-SSRF-001"
+    name: "URL from User Input"
+    description: "HTTP request made to user-controlled URL"
+    severity: high
+    confidence: medium
+    owasp_category: "A10:2025"
+    cwe: "CWE-918"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "new URL\\s*\\(.*getParameter"
+        type: regex
+        message: "URL from request parameter"
+      - pattern: "RestTemplate.*getForObject\\s*\\(.*\\+"
+        type: regex
+        message: "RestTemplate with dynamic URL"
+      - pattern: "WebClient.*uri\\s*\\(.*\\+"
+        type: regex
+        message: "WebClient with dynamic URL"
+      - pattern: "HttpClient.*send\\s*\\(.*request"
+        type: regex
+        message: "HttpClient with potentially tainted URL"
+      - pattern: "requests\\.(get|post|put|delete)\\s*\\(.*\\+"
+        type: regex
+        message: "Python requests with dynamic URL"
+      - pattern: "urllib\\.request\\.urlopen\\s*\\("
+        type: regex
+        message: "Python urlopen"
+      - pattern: "fetch\\s*\\(.*\\+"
+        type: regex
+        message: "fetch with dynamic URL"
+      - pattern: "axios\\.(get|post|put|delete)\\s*\\(.*\\+"
+        type: regex
+        message: "axios with dynamic URL"
+    remediation:
+      description: "Validate and sanitize URLs. Use allowlists for permitted hosts and protocols."
+    tags: [ssrf, owasp-a10]
+
+  - id: "A10-SSRF-002"
+    name: "Internal Network Access"
+    description: "Request patterns that could access internal networks"
+    severity: high
+    confidence: medium
+    owasp_category: "A10:2025"
+    cwe: "CWE-918"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0"
+        type: regex
+        message: "Localhost reference"
+      - pattern: "192\\.168\\.|10\\.|172\\.(1[6-9]|2[0-9]|3[0-1])\\."
+        type: regex
+        message: "Private IP address range"
+      - pattern: "169\\.254\\."
+        type: regex
+        message: "Link-local address (cloud metadata)"
+    remediation:
+      description: "Block requests to private IP ranges and metadata endpoints"
+    tags: [ssrf, internal-network, owasp-a10]
+
+  # ============================================
+  # Cloud Metadata Access
+  # ============================================
+
+  - id: "A10-SSRF-003"
+    name: "Cloud Metadata Endpoint"
+    description: "Potential access to cloud metadata service"
+    severity: critical
+    confidence: high
+    owasp_category: "A10:2025"
+    cwe: "CWE-918"
+    languages: [java, python, javascript, xml, yaml]
+    detection_mode: pattern
+    patterns:
+      - pattern: "169\\.254\\.169\\.254"
+        type: regex
+        message: "AWS/GCP metadata endpoint"
+      - pattern: "metadata\\.google\\.internal"
+        type: regex
+        message: "GCP metadata endpoint"
+      - pattern: "metadata\\.azure\\.com"
+        type: regex
+        message: "Azure metadata endpoint"
+    remediation:
+      description: "Never allow user input to construct URLs that could access cloud metadata"
+    tags: [ssrf, cloud-metadata, owasp-a10]
+
+  # ============================================
+  # URL Redirect
+  # ============================================
+
+  - id: "A10-REDIRECT-001"
+    name: "Open Redirect"
+    description: "Redirect to user-controlled URL"
+    severity: medium
+    confidence: medium
+    owasp_category: "A10:2025"
+    cwe: "CWE-601"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "sendRedirect\\s*\\(.*getParameter"
+        type: regex
+        message: "Redirect with request parameter"
+      - pattern: "response\\.redirect\\s*\\(.*req\\."
+        type: regex
+        message: "Express redirect with user input"
+      - pattern: "HttpResponseRedirect\\s*\\(.*request\\."
+        type: regex
+        message: "Django redirect with user input"
+      - pattern: "header\\s*\\(\\s*[\"']Location.*\\$"
+        type: regex
+        message: "PHP header redirect with variable"
+    remediation:
+      description: "Validate redirect URLs against an allowlist of trusted domains"
+    tags: [open-redirect, owasp-a10]

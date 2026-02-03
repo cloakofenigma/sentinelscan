@@ -1,0 +1,49 @@
+# Environment & secrets
+.env
+*.env
+.env.*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.venv/
+env/
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Tree-sitter compiled libraries
+*.so
+*.dylib
+*.dll
+
+# Claude Code
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scan targets (don't commit codebases being scanned)
+scan-targets/
+
+# Scan outputs
+*.sarif
+scan_*.json
+*_scan_*.json
+*_analysis_*.json
+
+# Cache
+.cache/
+*.cache

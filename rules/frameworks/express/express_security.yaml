@@ -1,0 +1,702 @@
+# Express.js Framework Security Rules
+# Comprehensive security rules for Express.js/Node.js applications
+
+metadata:
+  framework: Express.js
+  language: javascript/typescript
+  versions: "4.x, 5.x"
+  description: |
+    Security rules specific to Express.js web framework covering
+    middleware configuration, injection vulnerabilities, authentication,
+    session management, and Node.js security best practices.
+  version: "1.0.0"
+  last_updated: "2025-01-29"
+
+rules:
+  # ============================================================================
+  # MIDDLEWARE AND CONFIGURATION
+  # ============================================================================
+
+  - id: EXPRESS-001
+    name: Missing Helmet Security Headers
+    description: Express app not using Helmet for security headers
+    severity: medium
+    confidence: medium
+    cwe: CWE-693
+    owasp: A05
+    tags:
+      - express
+      - headers
+      - helmet
+    file_patterns:
+      - "*.js"
+      - "*.ts"
+      - "app.js"
+      - "server.js"
+      - "index.js"
+    detection:
+      semantic:
+        express_app:
+          uses:
+            - express()
+          missing:
+            - helmet
+      patterns:
+        - pattern: 'express\s*\(\s*\)'
+          missing: 'helmet'
+    remediation:
+      description: Use Helmet middleware for security headers
+      code_example:
+        javascript: |
+          const express = require('express');
+          const helmet = require('helmet');
+
+          const app = express();
+
+          // Use helmet with all default protections
+          app.use(helmet());
+
+          // Or configure specific headers
+          app.use(helmet({
+              contentSecurityPolicy: {
+                  directives: {
+                      defaultSrc: ["'self'"],
+                      scriptSrc: ["'self'"],
+                      styleSrc: ["'self'", "'unsafe-inline'"],
+                  }
+              },
+              hsts: {
+                  maxAge: 31536000,
+                  includeSubDomains: true,
+                  preload: true
+              }
+          }));
+    references:
+      - https://helmetjs.github.io/
+
+  - id: EXPRESS-002
+    name: Missing Rate Limiting
+    description: Express app without rate limiting middleware
+    severity: medium
+    confidence: medium
+    cwe: CWE-770
+    owasp: A04
+    tags:
+      - express
+      - rate-limiting
+      - dos
+    detection:
+      semantic:
+        express_app:
+          missing:
+            - express-rate-limit
+            - rate-limiter-flexible
+            - express-slow-down
+    remediation:
+      description: Implement rate limiting for API endpoints
+      code_example:
+        javascript: |
+          const rateLimit = require('express-rate-limit');
+
+          // General rate limiter
+          const limiter = rateLimit({
+              windowMs: 15 * 60 * 1000, // 15 minutes
+              max: 100, // limit each IP to 100 requests per window
+              message: 'Too many requests, please try again later.',
+              standardHeaders: true,
+              legacyHeaders: false,
+          });
+
+          // Apply to all routes
+          app.use(limiter);
+
+          // Stricter limiter for auth endpoints
+          const authLimiter = rateLimit({
+              windowMs: 60 * 1000, // 1 minute
+              max: 5, // 5 attempts per minute
+              skipSuccessfulRequests: true,
+          });
+
+          app.use('/api/login', authLimiter);
+          app.use('/api/register', authLimiter);
+    references:
+      - https://www.npmjs.com/package/express-rate-limit
+
+  - id: EXPRESS-003
+    name: CORS Misconfiguration
+    description: CORS configured to allow all origins
+    severity: high
+    confidence: high
+    cwe: CWE-942
+    owasp: A05
+    tags:
+      - express
+      - cors
+      - access-control
+    detection:
+      patterns:
+        - pattern: "cors\\s*\\(\\s*\\)"
+          description: CORS with default (allow all) config
+        - pattern: 'origin\s*:\s*true'
+        - pattern: "origin\\s*:\\s*['\"]\\*['\"]"
+        - pattern: 'origin\s*:\s*\*'
+        - pattern: 'Access-Control-Allow-Origin.*\*'
+        - pattern: "res\\.header\\s*\\(['\"]Access-Control-Allow-Origin['\"]\\s*,\\s*['\"]\\*"
+    remediation:
+      description: Configure CORS with specific allowed origins
+      code_example:
+        javascript: |
+          const cors = require('cors');
+
+          const corsOptions = {
+              origin: function (origin, callback) {
+                  const allowedOrigins = [
+                      'https://app.example.com',
+                      'https://www.example.com'
+                  ];
+
+                  // Allow requests with no origin (mobile apps, curl, etc.)
+                  if (!origin) return callback(null, true);
+
+                  if (allowedOrigins.includes(origin)) {
+                      callback(null, true);
+                  } else {
+                      callback(new Error('Not allowed by CORS'));
+                  }
+              },
+              credentials: true,
+              methods: ['GET', 'POST', 'PUT', 'DELETE'],
+              allowedHeaders: ['Content-Type', 'Authorization']
+          };
+
+          app.use(cors(corsOptions));
+    references:
+      - https://www.npmjs.com/package/cors
+
+  - id: EXPRESS-004
+    name: Missing Body Parser Limits
+    description: Body parser without size limits can cause DoS
+    severity: medium
+    confidence: medium
+    cwe: CWE-770
+    owasp: A04
+    tags:
+      - express
+      - body-parser
+      - dos
+    detection:
+      patterns:
+        - pattern: 'express\.json\s*\(\s*\)'
+          missing: 'limit'
+        - pattern: 'express\.urlencoded\s*\(\s*\{'
+          missing: 'limit'
+        - pattern: 'bodyParser\.json\s*\(\s*\)'
+          missing: 'limit'
+    remediation:
+      description: Set appropriate size limits for request bodies
+      code_example:
+        javascript: |
+          // Set reasonable limits
+          app.use(express.json({ limit: '100kb' }));
+          app.use(express.urlencoded({ extended: true, limit: '100kb' }));
+
+          // For file uploads, use multer with limits
+          const multer = require('multer');
+          const upload = multer({
+              limits: {
+                  fileSize: 10 * 1024 * 1024, // 10 MB
+                  files: 5
+              }
+          });
+    references:
+      - https://expressjs.com/en/api.html#express.json
+
+  - id: EXPRESS-005
+    name: Trust Proxy Misconfiguration
+    description: Trust proxy not configured correctly behind reverse proxy
+    severity: medium
+    confidence: low
+    cwe: CWE-346
+    owasp: A05
+    tags:
+      - express
+      - proxy
+      - ip-spoofing
+    detection:
+      patterns:
+        - pattern: "app\\.set\\s*\\(['\"]trust proxy['\"]\\s*,\\s*true\\s*\\)"
+          description: Trusting all proxies can lead to IP spoofing
+    remediation:
+      description: Configure trust proxy correctly for your infrastructure
+      code_example:
+        javascript: |
+          // Behind single proxy
+          app.set('trust proxy', 1);
+
+          // Behind specific proxy IPs
+          app.set('trust proxy', ['loopback', '10.0.0.0/8']);
+
+          // Custom function
+          app.set('trust proxy', (ip) => {
+              return ip === '127.0.0.1' || ip.startsWith('10.');
+          });
+    references:
+      - https://expressjs.com/en/guide/behind-proxies.html
+
+  # ============================================================================
+  # INJECTION VULNERABILITIES
+  # ============================================================================
+
+  - id: EXPRESS-006
+    name: NoSQL Injection
+    description: User input in MongoDB/NoSQL query without sanitization
+    severity: high
+    confidence: medium
+    cwe: CWE-943
+    owasp: A03
+    tags:
+      - express
+      - nosql-injection
+      - mongodb
+    detection:
+      patterns:
+        - pattern: '\.find\s*\(\s*\{\s*\w+\s*:\s*req\.(body|query|params)'
+        - pattern: '\.findOne\s*\(\s*\{\s*\w+\s*:\s*req\.(body|query|params)'
+        - pattern: '\.updateOne\s*\(\s*\{\s*\w+\s*:\s*req\.(body|query|params)'
+        - pattern: '\.deleteOne\s*\(\s*\{\s*\w+\s*:\s*req\.(body|query|params)'
+        - pattern: '\$where\s*:\s*req\.'
+        - pattern: '\$regex\s*:\s*req\.'
+      dataflow:
+        sources:
+          - req.body
+          - req.query
+          - req.params
+        sinks:
+          - .find(
+          - .findOne(
+          - .updateOne(
+          - .deleteOne(
+    remediation:
+      description: Sanitize input and use parameterized queries
+      code_example:
+        javascript: |
+          const mongoSanitize = require('express-mongo-sanitize');
+
+          // Global sanitization middleware
+          app.use(mongoSanitize());
+
+          // Manual validation
+          app.post('/users', async (req, res) => {
+              const { username } = req.body;
+
+              // Validate type
+              if (typeof username !== 'string') {
+                  return res.status(400).json({ error: 'Invalid username' });
+              }
+
+              // Safe query - username is validated string
+              const user = await User.findOne({ username: username.toString() });
+          });
+
+          // For $regex, validate pattern
+          const searchTerm = req.query.q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const results = await Product.find({
+              name: { $regex: searchTerm, $options: 'i' }
+          });
+    references:
+      - https://owasp.org/www-pdf-archive/GOD16-NOSQL.pdf
+
+  - id: EXPRESS-007
+    name: Command Injection
+    description: User input passed to shell command execution
+    severity: critical
+    confidence: high
+    cwe: CWE-78
+    owasp: A03
+    tags:
+      - express
+      - command-injection
+      - rce
+    detection:
+      patterns:
+        - pattern: 'exec\s*\(\s*`[^`]*\$\{.*req\.'
+        - pattern: 'exec\s*\(\s*[^,)]*\+\s*req\.'
+        - pattern: 'execSync\s*\(\s*`[^`]*\$\{.*req\.'
+        - pattern: 'spawn\s*\(\s*[^,]+,\s*\[[^\]]*req\.'
+        - pattern: 'child_process.*exec.*req\.(body|query|params)'
+      dataflow:
+        sources:
+          - req.body
+          - req.query
+          - req.params
+        sinks:
+          - child_process.exec
+          - child_process.execSync
+          - child_process.spawn
+    remediation:
+      description: Avoid shell execution; use spawn with arguments array
+      code_example:
+        javascript: |
+          const { spawn } = require('child_process');
+
+          // Bad - command injection vulnerable
+          app.get('/ping', (req, res) => {
+              exec(`ping -c 4 ${req.query.host}`, (err, stdout) => {
+                  res.send(stdout);
+              });
+          });
+
+          // Good - use spawn with argument array
+          app.get('/ping', (req, res) => {
+              // Validate input
+              const host = req.query.host;
+              if (!/^[a-zA-Z0-9.-]+$/.test(host)) {
+                  return res.status(400).send('Invalid hostname');
+              }
+
+              const child = spawn('ping', ['-c', '4', host]);
+
+              let output = '';
+              child.stdout.on('data', (data) => { output += data; });
+              child.on('close', () => res.send(output));
+          });
+    references:
+      - https://nodejs.org/api/child_process.html
+
+  - id: EXPRESS-008
+    name: Path Traversal
+    description: User input used in file path without sanitization
+    severity: high
+    confidence: high
+    cwe: CWE-22
+    owasp: A01
+    tags:
+      - express
+      - path-traversal
+      - lfi
+    detection:
+      patterns:
+        - pattern: 'sendFile\s*\([^)]*req\.(body|query|params)'
+        - pattern: 'readFile(Sync)?\s*\([^)]*req\.(body|query|params)'
+        - pattern: 'createReadStream\s*\([^)]*req\.(body|query|params)'
+        - pattern: 'path\.join\s*\([^)]*req\.(body|query|params)'
+        - pattern: 'res\.download\s*\([^)]*req\.(body|query|params)'
+      dataflow:
+        sources:
+          - req.body
+          - req.query
+          - req.params
+        sinks:
+          - fs.readFile
+          - fs.createReadStream
+          - res.sendFile
+          - res.download
+    remediation:
+      description: Validate and sanitize file paths
+      code_example:
+        javascript: |
+          const path = require('path');
+          const fs = require('fs');
+
+          const SAFE_DIR = path.resolve('./public/files');
+
+          app.get('/download/:filename', (req, res) => {
+              const filename = req.params.filename;
+
+              // Remove path components
+              const safeName = path.basename(filename);
+
+              // Build full path
+              const filePath = path.join(SAFE_DIR, safeName);
+
+              // Verify path is within safe directory
+              const realPath = fs.realpathSync(filePath);
+              if (!realPath.startsWith(SAFE_DIR)) {
+                  return res.status(403).send('Access denied');
+              }
+
+              res.sendFile(realPath);
+          });
+    references:
+      - https://owasp.org/www-community/attacks/Path_Traversal
+
+  - id: EXPRESS-009
+    name: XSS via Response
+    description: User input reflected in response without encoding
+    severity: high
+    confidence: medium
+    cwe: CWE-79
+    owasp: A03
+    tags:
+      - express
+      - xss
+      - reflection
+    detection:
+      patterns:
+        - pattern: 'res\.send\s*\([^)]*req\.(body|query|params)'
+        - pattern: 'res\.send\s*\(\s*`[^`]*\$\{.*req\.'
+        - pattern: 'res\.write\s*\([^)]*req\.(body|query|params)'
+        - pattern: "innerHTML\\s*=.*req\\."
+    remediation:
+      description: Encode output and use templating with auto-escaping
+      code_example:
+        javascript: |
+          const escapeHtml = require('escape-html');
+
+          // Bad - XSS vulnerable
+          app.get('/search', (req, res) => {
+              res.send(`<h1>Results for: ${req.query.q}</h1>`);
+          });
+
+          // Good - escape output
+          app.get('/search', (req, res) => {
+              const query = escapeHtml(req.query.q);
+              res.send(`<h1>Results for: ${query}</h1>`);
+          });
+
+          // Better - use templating engine with auto-escape
+          app.set('view engine', 'ejs');
+          app.get('/search', (req, res) => {
+              res.render('search', { query: req.query.q }); // Auto-escaped
+          });
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+
+  # ============================================================================
+  # SESSION AND AUTHENTICATION
+  # ============================================================================
+
+  - id: EXPRESS-010
+    name: Insecure Session Configuration
+    description: Session middleware with insecure settings
+    severity: high
+    confidence: high
+    cwe: CWE-614
+    owasp: A07
+    tags:
+      - express
+      - session
+      - cookies
+    detection:
+      patterns:
+        - pattern: 'cookie\s*:\s*\{[^}]*secure\s*:\s*false'
+        - pattern: 'cookie\s*:\s*\{[^}]*httpOnly\s*:\s*false'
+        - pattern: "secret\\s*:\\s*['\"][^'\"]{1,20}['\"]"
+          description: Weak session secret
+        - pattern: 'session\s*\(\s*\{[^}]*\}\s*\)'
+          missing: 'secret|cookie'
+    remediation:
+      description: Configure secure session settings
+      code_example:
+        javascript: |
+          const session = require('express-session');
+          const RedisStore = require('connect-redis').default;
+          const crypto = require('crypto');
+
+          app.use(session({
+              store: new RedisStore({ client: redisClient }),
+              secret: process.env.SESSION_SECRET, // min 32 chars
+              name: 'sessionId', // Don't use default name
+              resave: false,
+              saveUninitialized: false,
+              cookie: {
+                  secure: process.env.NODE_ENV === 'production',
+                  httpOnly: true,
+                  sameSite: 'strict',
+                  maxAge: 24 * 60 * 60 * 1000 // 24 hours
+              }
+          }));
+    references:
+      - https://www.npmjs.com/package/express-session
+
+  - id: EXPRESS-011
+    name: JWT Stored in localStorage
+    description: JWT token stored in localStorage vulnerable to XSS
+    severity: medium
+    confidence: high
+    cwe: CWE-922
+    owasp: A07
+    tags:
+      - express
+      - jwt
+      - storage
+    detection:
+      patterns:
+        - pattern: 'localStorage\.setItem.*token'
+        - pattern: 'localStorage\[.token'
+        - pattern: 'sessionStorage\.setItem.*token'
+    remediation:
+      description: Use httpOnly cookies for JWT storage
+      code_example:
+        javascript: |
+          // Server-side: Set JWT in httpOnly cookie
+          app.post('/login', async (req, res) => {
+              const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET);
+
+              res.cookie('token', token, {
+                  httpOnly: true,
+                  secure: process.env.NODE_ENV === 'production',
+                  sameSite: 'strict',
+                  maxAge: 24 * 60 * 60 * 1000
+              });
+
+              res.json({ message: 'Login successful' });
+          });
+
+          // Middleware to verify
+          const authMiddleware = (req, res, next) => {
+              const token = req.cookies.token;
+              if (!token) return res.status(401).json({ error: 'Unauthorized' });
+
+              try {
+                  req.user = jwt.verify(token, process.env.JWT_SECRET);
+                  next();
+              } catch (err) {
+                  res.status(401).json({ error: 'Invalid token' });
+              }
+          };
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/JSON_Web_Token_for_Java_Cheat_Sheet.html
+
+  - id: EXPRESS-012
+    name: Missing Authentication Middleware
+    description: Routes accessing sensitive data without auth middleware
+    severity: high
+    confidence: medium
+    cwe: CWE-306
+    owasp: A07
+    tags:
+      - express
+      - authentication
+      - middleware
+    detection:
+      semantic:
+        route_analysis:
+          sensitive_routes:
+            - /admin
+            - /api/users
+            - /api/settings
+            - /dashboard
+          missing:
+            - auth_middleware
+            - passport.authenticate
+            - jwt verification
+    remediation:
+      description: Apply authentication middleware to protected routes
+      code_example:
+        javascript: |
+          const jwt = require('jsonwebtoken');
+
+          const authenticate = (req, res, next) => {
+              const token = req.cookies.token || req.headers.authorization?.split(' ')[1];
+
+              if (!token) {
+                  return res.status(401).json({ error: 'Authentication required' });
+              }
+
+              try {
+                  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+                  req.user = decoded;
+                  next();
+              } catch (err) {
+                  return res.status(401).json({ error: 'Invalid token' });
+              }
+          };
+
+          // Protect routes
+          app.use('/api/admin', authenticate, adminRoutes);
+          app.use('/api/user', authenticate, userRoutes);
+    references:
+      - https://expressjs.com/en/guide/using-middleware.html
+
+  # ============================================================================
+  # ERROR HANDLING
+  # ============================================================================
+
+  - id: EXPRESS-013
+    name: Stack Trace Exposure
+    description: Error stack traces exposed to clients
+    severity: medium
+    confidence: medium
+    cwe: CWE-209
+    owasp: A05
+    tags:
+      - express
+      - error-handling
+      - information-disclosure
+    detection:
+      patterns:
+        - pattern: 'res\.(send|json)\s*\(\s*err\.stack'
+        - pattern: 'res\.(send|json)\s*\(\s*\{[^}]*stack\s*:\s*err\.stack'
+        - pattern: 'res\.(send|json)\s*\(\s*err\s*\)'
+          context: error_handler
+    remediation:
+      description: Never expose stack traces in production
+      code_example:
+        javascript: |
+          // Error handling middleware
+          app.use((err, req, res, next) => {
+              console.error(err.stack); // Log full error
+
+              // Send sanitized response
+              const statusCode = err.statusCode || 500;
+              const message = process.env.NODE_ENV === 'production'
+                  ? 'Internal server error'
+                  : err.message;
+
+              res.status(statusCode).json({
+                  error: message,
+                  ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
+              });
+          });
+    references:
+      - https://expressjs.com/en/guide/error-handling.html
+
+  - id: EXPRESS-014
+    name: Unhandled Promise Rejection
+    description: Async errors not properly caught in route handlers
+    severity: medium
+    confidence: medium
+    cwe: CWE-755
+    owasp: A09
+    tags:
+      - express
+      - error-handling
+      - async
+    detection:
+      patterns:
+        - pattern: 'app\.(get|post|put|delete)\s*\([^,]+,\s*async\s*\('
+          missing: 'try.*catch|asyncHandler|express-async-handler'
+    remediation:
+      description: Use async error wrapper or express-async-handler
+      code_example:
+        javascript: |
+          // Option 1: express-async-handler
+          const asyncHandler = require('express-async-handler');
+
+          app.get('/users', asyncHandler(async (req, res) => {
+              const users = await User.find();
+              res.json(users);
+          }));
+
+          // Option 2: Custom wrapper
+          const asyncWrapper = (fn) => (req, res, next) => {
+              Promise.resolve(fn(req, res, next)).catch(next);
+          };
+
+          app.get('/users', asyncWrapper(async (req, res) => {
+              const users = await User.find();
+              res.json(users);
+          }));
+
+          // Option 3: Try-catch
+          app.get('/users', async (req, res, next) => {
+              try {
+                  const users = await User.find();
+                  res.json(users);
+              } catch (err) {
+                  next(err);
+              }
+          });
+    references:
+      - https://expressjs.com/en/guide/error-handling.html

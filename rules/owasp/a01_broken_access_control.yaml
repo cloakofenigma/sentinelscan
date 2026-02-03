@@ -1,0 +1,203 @@
+# OWASP A01:2025 - Broken Access Control
+
+metadata:
+  category: A01
+  name: Broken Access Control
+  description: "Rules for detecting access control vulnerabilities"
+  version: "1.0.0"
+
+rules:
+  - id: ACCESS-001
+    name: Missing Authorization Check
+    description: Endpoint without authorization annotation or check
+    severity: medium
+    confidence: low
+    cwe: CWE-862
+    owasp: A01
+    tags: [access-control, authorization, missing-check]
+    languages: [java]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "@(PostMapping|PutMapping|DeleteMapping).*admin(?!.*@PreAuthorize)(?!.*@Secured)"
+    remediation:
+      description: "Add @PreAuthorize or @Secured annotations to protected endpoints"
+
+  - id: ACCESS-002
+    name: Insecure Direct Object Reference
+    description: Direct object reference without ownership validation
+    severity: high
+    confidence: medium
+    cwe: CWE-639
+    owasp: A01
+    tags: [access-control, idor]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "findById\\s*\\(\\s*(id|userId|\\w+Id)\\s*\\)"
+        - pattern: "@PathVariable.*[iI]d.*findBy"
+          language: java
+        - pattern: "get_object_or_404\\s*\\(.*pk="
+          language: python
+    remediation:
+      description: "Validate that the authenticated user owns or has access to the requested resource"
+
+  - id: ACCESS-003
+    name: Path Traversal
+    description: File path manipulation with user input
+    severity: critical
+    confidence: high
+    cwe: CWE-22
+    owasp: A01
+    tags: [access-control, path-traversal, lfi]
+    languages: [java, python, javascript, php]
+    detection:
+      patterns:
+        - pattern: "new File\\s*\\(.*\\+\\s*"
+          language: java
+        - pattern: "Paths\\.get\\s*\\(.*\\+\\s*"
+          language: java
+        - pattern: "File(Input|Output)Stream\\s*\\(.*\\+\\s*"
+          language: java
+        - pattern: "open\\s*\\(.*\\+\\s*"
+          language: python
+        - pattern: "fs\\.(readFile|writeFile)\\s*\\(.*\\+"
+          language: javascript
+        - pattern: "file_get_contents\\s*\\(.*\\$"
+          language: php
+    remediation:
+      description: "Validate and sanitize file paths. Use allowlists. Canonicalize paths."
+
+  - id: ACCESS-004
+    name: Permissive CORS Configuration
+    description: CORS configuration allows any origin
+    severity: medium
+    confidence: high
+    cwe: CWE-942
+    owasp: A01
+    tags: [access-control, cors]
+    languages: [java, javascript, python]
+    detection:
+      patterns:
+        - pattern: "Access-Control-Allow-Origin.*\\*"
+        - pattern: "allowedOrigins.*\\*"
+          language: java
+        - pattern: "cors\\s*\\(.*origin.*true"
+          language: javascript
+        - pattern: "CORS_ALLOW_ALL_ORIGINS\\s*=\\s*True"
+          language: python
+    remediation:
+      description: "Configure specific allowed origins. Never use wildcards with credentials."
+
+  - id: ACCESS-005
+    name: Privilege Escalation via Mass Assignment
+    description: Object binding without field restrictions
+    severity: high
+    confidence: medium
+    cwe: CWE-915
+    owasp: A01
+    tags: [access-control, mass-assignment]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "BeanUtils\\.copyProperties\\s*\\("
+          language: java
+        - pattern: "Object\\.assign\\s*\\(\\s*\\w+\\s*,\\s*req\\.body"
+          language: javascript
+        - pattern: "\\.update\\s*\\(\\s*\\*\\*request\\."
+          language: python
+    remediation:
+      description: "Use DTOs with explicit field mapping. Never bind directly to domain objects."
+
+  - id: ACCESS-006
+    name: Hardcoded Admin Bypass
+    description: Hardcoded admin credentials or bypass logic
+    severity: critical
+    confidence: high
+    cwe: CWE-798
+    owasp: A01
+    tags: [access-control, auth-bypass]
+    languages: [java, python, javascript, php]
+    detection:
+      patterns:
+        - pattern: "isAdmin\\s*=\\s*true"
+        - pattern: "role\\s*==?\\s*[\"']admin[\"']"
+        - pattern: "username\\s*==?\\s*[\"']admin[\"']"
+    remediation:
+      description: "Use proper role-based access control with database-backed roles"
+
+  - id: ACCESS-007
+    name: Exposed Internal API
+    description: Internal API endpoint exposed without authentication
+    severity: high
+    confidence: medium
+    cwe: CWE-306
+    owasp: A01
+    tags: [access-control, internal-api]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "@RequestMapping.*internal.*permitAll"
+          language: java
+        - pattern: "path.*internal.*authentication.*\\[\\]"
+          language: python
+        - pattern: "router\\.(get|post).*internal"
+          language: javascript
+    remediation:
+      description: "Add authentication and IP restrictions to internal endpoints"
+
+  - id: ACCESS-008
+    name: Missing Function Level Access Control
+    description: Function accessible without proper role check
+    severity: high
+    confidence: medium
+    cwe: CWE-285
+    owasp: A01
+    tags: [access-control, authorization]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "hasRole\\s*\\(\\s*[\"'][\"']\\s*\\)"
+          language: java
+        - pattern: "@permission_classes\\s*\\(\\s*\\[\\]\\s*\\)"
+          language: python
+        - pattern: "roles\\s*:\\s*\\[\\]"
+    remediation:
+      description: "Implement proper role-based access control for all sensitive functions"
+
+  - id: ACCESS-009
+    name: Horizontal Privilege Escalation
+    description: User can access another user's resources
+    severity: high
+    confidence: medium
+    cwe: CWE-639
+    owasp: A01
+    tags: [access-control, horizontal-escalation]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "userId\\s*=\\s*request\\.getParameter"
+          language: java
+        - pattern: "user_id\\s*=\\s*request\\.(GET|POST)"
+          language: python
+        - pattern: "userId\\s*=\\s*req\\.(body|params|query)"
+          language: javascript
+    remediation:
+      description: "Always derive user ID from authenticated session, not user input"
+
+  - id: ACCESS-010
+    name: Insecure API Key Storage
+    description: API key stored in insecure location
+    severity: high
+    confidence: medium
+    cwe: CWE-312
+    owasp: A01
+    tags: [access-control, api-key, storage]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "apiKey\\s*=\\s*[\"'][A-Za-z0-9]{20,}[\"']"
+        - pattern: "API_KEY\\s*=\\s*[\"'][A-Za-z0-9]{20,}[\"']"
+        - pattern: "x-api-key.*[\"'][A-Za-z0-9]{20,}[\"']"
+    remediation:
+      description: "Store API keys in environment variables or secret management service"

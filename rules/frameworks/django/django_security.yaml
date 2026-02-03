@@ -1,0 +1,202 @@
+# Django Framework Security Rules
+
+metadata:
+  framework: django
+  name: Django Security Rules
+  description: "Security rules for Django applications"
+  version: "1.0.0"
+
+rules:
+  - id: DJANGO-001
+    name: Debug Mode Enabled
+    description: DEBUG is True in Django settings
+    severity: high
+    confidence: high
+    cwe: CWE-489
+    owasp: A05
+    tags: [django, debug, settings]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "DEBUG\\s*=\\s*True"
+    remediation:
+      description: "Set DEBUG = False in production"
+
+  - id: DJANGO-002
+    name: Secret Key Hardcoded
+    description: SECRET_KEY hardcoded in settings
+    severity: critical
+    confidence: high
+    cwe: CWE-798
+    owasp: A02
+    tags: [django, secret, settings]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "SECRET_KEY\\s*=\\s*[\"'][^\"']{10,}[\"']"
+    remediation:
+      description: "Load SECRET_KEY from environment variable"
+
+  - id: DJANGO-003
+    name: SQL Injection via Raw Query
+    description: Django raw() or extra() with unsanitized input
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags: [django, sql-injection, orm]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "\\.raw\\s*\\(\\s*f[\"']"
+        - pattern: "\\.raw\\s*\\(\\s*[\"'].*%.*[\"']\\s*%"
+        - pattern: "\\.extra\\s*\\("
+        - pattern: "cursor\\.execute\\s*\\(\\s*f[\"']"
+    remediation:
+      description: "Use parameterized queries with %s placeholders"
+
+  - id: DJANGO-004
+    name: XSS via Safe Filter
+    description: Using |safe filter on user input
+    severity: high
+    confidence: medium
+    cwe: CWE-79
+    owasp: A03
+    tags: [django, xss, template]
+    languages: [python, html]
+    detection:
+      patterns:
+        - pattern: "\\{\\{\\s*\\w+\\s*\\|\\s*safe\\s*\\}\\}"
+        - pattern: "mark_safe\\s*\\("
+        - pattern: "SafeString\\s*\\("
+    remediation:
+      description: "Avoid |safe filter on user input. Let Django auto-escape."
+
+  - id: DJANGO-005
+    name: CSRF Protection Disabled
+    description: CSRF middleware removed or exempt used incorrectly
+    severity: high
+    confidence: high
+    cwe: CWE-352
+    owasp: A01
+    tags: [django, csrf]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "@csrf_exempt"
+        - pattern: "CsrfViewMiddleware.*#"
+    remediation:
+      description: "Keep CSRF protection enabled. Use @csrf_exempt sparingly."
+
+  - id: DJANGO-006
+    name: Insecure Cookie Settings
+    description: Session cookie missing security attributes
+    severity: medium
+    confidence: high
+    cwe: CWE-614
+    owasp: A07
+    tags: [django, cookie, session]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "SESSION_COOKIE_SECURE\\s*=\\s*False"
+        - pattern: "SESSION_COOKIE_HTTPONLY\\s*=\\s*False"
+        - pattern: "CSRF_COOKIE_SECURE\\s*=\\s*False"
+    remediation:
+      description: "Set SESSION_COOKIE_SECURE and SESSION_COOKIE_HTTPONLY to True"
+
+  - id: DJANGO-007
+    name: Allowed Hosts Wildcard
+    description: ALLOWED_HOSTS contains wildcard
+    severity: medium
+    confidence: high
+    cwe: CWE-16
+    owasp: A05
+    tags: [django, settings, host]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "ALLOWED_HOSTS\\s*=\\s*\\[\\s*[\"']\\*[\"']"
+    remediation:
+      description: "Specify explicit allowed hosts in production"
+
+  - id: DJANGO-008
+    name: Insecure Password Hasher
+    description: Using weak password hashing algorithm
+    severity: high
+    confidence: high
+    cwe: CWE-328
+    owasp: A02
+    tags: [django, password, hashing]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "MD5PasswordHasher"
+        - pattern: "SHA1PasswordHasher"
+        - pattern: "UnsaltedMD5PasswordHasher"
+    remediation:
+      description: "Use PBKDF2, Argon2, or bcrypt password hashers"
+
+  - id: DJANGO-009
+    name: Open Redirect
+    description: Redirect to user-controlled URL
+    severity: medium
+    confidence: medium
+    cwe: CWE-601
+    owasp: A10
+    tags: [django, redirect]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "HttpResponseRedirect\\s*\\(.*request\\.(GET|POST)"
+        - pattern: "redirect\\s*\\(.*request\\.(GET|POST)"
+    remediation:
+      description: "Validate redirect URLs against allowlist"
+
+  - id: DJANGO-010
+    name: Insecure Deserialization
+    description: Using pickle with untrusted data
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A08
+    tags: [django, deserialization, pickle]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "pickle\\.loads?\\s*\\("
+        - pattern: "yaml\\.load\\s*\\([^)]*Loader\\s*=\\s*yaml\\.Loader"
+        - pattern: "yaml\\.unsafe_load"
+    remediation:
+      description: "Avoid pickle for untrusted data. Use JSON instead."
+
+  - id: DJANGO-011
+    name: Mass Assignment
+    description: Model created from request without form validation
+    severity: high
+    confidence: medium
+    cwe: CWE-915
+    owasp: A01
+    tags: [django, mass-assignment]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "\\.objects\\.create\\s*\\(\\s*\\*\\*request\\.(POST|GET|data)"
+        - pattern: "Model\\s*\\(\\s*\\*\\*request\\."
+    remediation:
+      description: "Use Django forms or serializers for input validation"
+
+  - id: DJANGO-012
+    name: Sensitive Data in URL
+    description: Password or token in URL parameter
+    severity: medium
+    confidence: medium
+    cwe: CWE-598
+    owasp: A04
+    tags: [django, sensitive-data, url]
+    languages: [python]
+    detection:
+      patterns:
+        - pattern: "request\\.GET\\.get\\s*\\(\\s*[\"'](password|token|secret|api_key)"
+    remediation:
+      description: "Use POST body for sensitive data"

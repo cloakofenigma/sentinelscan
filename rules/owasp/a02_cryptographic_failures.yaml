@@ -1,0 +1,198 @@
+# OWASP A02:2025 - Cryptographic Failures
+
+metadata:
+  category: A02
+  name: Cryptographic Failures
+  description: "Rules for detecting cryptographic vulnerabilities"
+  version: "1.0.0"
+
+rules:
+  - id: CRYPTO-001
+    name: Weak Hash Algorithm - MD5
+    description: MD5 is cryptographically broken and should not be used for security purposes
+    severity: high
+    confidence: high
+    cwe: CWE-328
+    owasp: A02
+    tags: [cryptography, hashing, weak-algorithm]
+    languages: [java, python, javascript, php, csharp]
+    detection:
+      patterns:
+        - pattern: "MessageDigest\\.getInstance\\s*\\(\\s*[\"']MD5[\"']\\s*\\)"
+          language: java
+        - pattern: "DigestUtils\\.md5"
+          language: java
+        - pattern: "hashlib\\.md5\\s*\\("
+          language: python
+        - pattern: "md5\\s*\\("
+          language: php
+        - pattern: "crypto\\.createHash\\s*\\(\\s*[\"']md5[\"']\\s*\\)"
+          language: javascript
+        - pattern: "MD5\\.Create\\s*\\("
+          language: csharp
+    remediation:
+      description: "Use SHA-256 or stronger hash algorithms. For passwords, use bcrypt, scrypt, or Argon2."
+
+  - id: CRYPTO-002
+    name: Weak Hash Algorithm - SHA1
+    description: SHA-1 is deprecated and vulnerable to collision attacks
+    severity: medium
+    confidence: high
+    cwe: CWE-328
+    owasp: A02
+    tags: [cryptography, hashing, weak-algorithm]
+    languages: [java, python, javascript, csharp]
+    detection:
+      patterns:
+        - pattern: "MessageDigest\\.getInstance\\s*\\(\\s*[\"']SHA-?1[\"']\\s*\\)"
+          language: java
+        - pattern: "DigestUtils\\.sha1"
+          language: java
+        - pattern: "hashlib\\.sha1\\s*\\("
+          language: python
+        - pattern: "crypto\\.createHash\\s*\\(\\s*[\"']sha1[\"']\\s*\\)"
+          language: javascript
+    remediation:
+      description: "Use SHA-256 or SHA-3 for cryptographic hashing"
+
+  - id: CRYPTO-003
+    name: Weak Encryption - DES/3DES
+    description: DES and 3DES are outdated encryption algorithms
+    severity: high
+    confidence: high
+    cwe: CWE-327
+    owasp: A02
+    tags: [cryptography, encryption, weak-algorithm]
+    languages: [java, python, csharp]
+    detection:
+      patterns:
+        - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"']DES"
+          language: java
+        - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"']DESede"
+          language: java
+        - pattern: "DES\\.new\\s*\\("
+          language: python
+        - pattern: "DESCryptoServiceProvider"
+          language: csharp
+    remediation:
+      description: "Use AES-256 with GCM mode for authenticated encryption"
+
+  - id: CRYPTO-004
+    name: ECB Mode Encryption
+    description: ECB mode is insecure as it does not provide semantic security
+    severity: high
+    confidence: high
+    cwe: CWE-327
+    owasp: A02
+    tags: [cryptography, encryption, weak-mode]
+    languages: [java, python, csharp]
+    detection:
+      patterns:
+        - pattern: "Cipher\\.getInstance\\s*\\(\\s*[\"'].*ECB"
+          language: java
+        - pattern: "AES\\.new\\s*\\([^)]*MODE_ECB"
+          language: python
+        - pattern: "CipherMode\\.ECB"
+          language: csharp
+    remediation:
+      description: "Use CBC, GCM, or CTR mode instead of ECB"
+
+  - id: CRYPTO-005
+    name: Hardcoded Encryption Key
+    description: Encryption key hardcoded in source code
+    severity: critical
+    confidence: high
+    cwe: CWE-321
+    owasp: A02
+    tags: [cryptography, key-management, hardcoded]
+    languages: [java, python, javascript, csharp]
+    detection:
+      patterns:
+        - pattern: "SecretKeySpec\\s*\\(\\s*[\"']"
+          language: java
+        - pattern: "(aes_key|encryption_key|secret_key)\\s*=\\s*[\"'][A-Za-z0-9+/=]{16,}[\"']"
+        - pattern: "ENCRYPTION_KEY\\s*=\\s*[\"']"
+    remediation:
+      description: "Use secure key management (KMS, HSM, Vault). Never hardcode keys."
+
+  - id: CRYPTO-006
+    name: Insecure Random Number Generator
+    description: Using non-cryptographic random number generator for security purposes
+    severity: medium
+    confidence: high
+    cwe: CWE-330
+    owasp: A02
+    tags: [cryptography, random, prng]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "new Random\\s*\\("
+          language: java
+        - pattern: "Math\\.random\\s*\\("
+          language: javascript
+        - pattern: "random\\.random\\s*\\("
+          language: python
+        - pattern: "random\\.randint\\s*\\("
+          language: python
+    remediation:
+      description: "Use SecureRandom (Java), secrets (Python), or crypto.randomBytes (Node.js)"
+
+  - id: CRYPTO-007
+    name: SSL/TLS Certificate Validation Disabled
+    description: SSL/TLS certificate validation is disabled
+    severity: critical
+    confidence: high
+    cwe: CWE-295
+    owasp: A02
+    tags: [cryptography, tls, certificate]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "setHostnameVerifier\\s*\\(.*ALLOW_ALL"
+          language: java
+        - pattern: "TrustManager.*checkServerTrusted.*return"
+          language: java
+        - pattern: "verify\\s*=\\s*False"
+          language: python
+        - pattern: "rejectUnauthorized\\s*:\\s*false"
+          language: javascript
+        - pattern: "CERT_NONE"
+          language: python
+    remediation:
+      description: "Always validate SSL certificates. Never disable verification."
+
+  - id: CRYPTO-008
+    name: Weak TLS Version
+    description: Using deprecated TLS/SSL version
+    severity: high
+    confidence: high
+    cwe: CWE-327
+    owasp: A02
+    tags: [cryptography, tls, protocol]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "SSLv2|SSLv3|TLSv1\\.0|TLSv1\\.1"
+        - pattern: "setEnabledProtocols.*SSL"
+          language: java
+    remediation:
+      description: "Use TLS 1.2 or higher with strong cipher suites"
+
+  - id: CRYPTO-009
+    name: Plaintext Password Storage
+    description: Password stored or transmitted in plaintext
+    severity: critical
+    confidence: medium
+    cwe: CWE-256
+    owasp: A02
+    tags: [cryptography, password, storage]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "password\\.equals\\s*\\("
+          language: java
+        - pattern: "password\\s*==\\s*[\"']"
+        - pattern: "setPassword\\s*\\(.*getParameter"
+          language: java
+    remediation:
+      description: "Use bcrypt, scrypt, or Argon2 for password hashing"

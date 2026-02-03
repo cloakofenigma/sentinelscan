@@ -1,0 +1,623 @@
+# OWASP A06:2025 - Vulnerable and Outdated Components
+# Security rules for detecting vulnerable dependencies
+
+metadata:
+  category: A06
+  name: Vulnerable and Outdated Components
+  description: |
+    Rules for detecting usage of vulnerable libraries, frameworks, and
+    dependencies. Includes known CVE patterns, outdated versions, and
+    unmaintained packages.
+  version: "1.0.0"
+  last_updated: "2025-01-29"
+
+rules:
+  # ============================================================================
+  # JAVA VULNERABLE DEPENDENCIES
+  # ============================================================================
+
+  - id: VULN-COMP-001
+    name: Log4j Vulnerable Version (Log4Shell)
+    description: Log4j versions 2.0-2.14.1 are vulnerable to CVE-2021-44228 (Log4Shell)
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    cve: CVE-2021-44228
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - log4j
+      - rce
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+      - "build.gradle.kts"
+    detection:
+      patterns:
+        - pattern: '<artifactId>log4j-core</artifactId>\s*<version>2\.([0-9]|1[0-4])\.'
+          language: xml
+        - pattern: 'log4j-core:2\.([0-9]|1[0-4])\.'
+          language: gradle
+        - pattern: "implementation.*log4j.*2\\.([0-9]|1[0-4])\\."
+          language: gradle
+    remediation:
+      description: Upgrade to Log4j 2.17.1 or later
+      code_example:
+        xml: |
+          <dependency>
+              <groupId>org.apache.logging.log4j</groupId>
+              <artifactId>log4j-core</artifactId>
+              <version>2.21.1</version>
+          </dependency>
+    references:
+      - https://nvd.nist.gov/vuln/detail/CVE-2021-44228
+      - https://logging.apache.org/log4j/2.x/security.html
+
+  - id: VULN-COMP-002
+    name: Spring4Shell Vulnerable Version
+    description: Spring Framework versions before 5.3.18/5.2.20 with JDK 9+ are vulnerable
+    severity: critical
+    confidence: medium
+    cwe: CWE-94
+    cve: CVE-2022-22965
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - spring
+      - rce
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>spring-beans</artifactId>\s*<version>5\.([0-2]\.|3\.([0-9]|1[0-7])\.)'
+          language: xml
+        - pattern: 'spring-beans:5\.([0-2]\.|3\.([0-9]|1[0-7])\.)'
+          language: gradle
+    remediation:
+      description: Upgrade to Spring Framework 5.3.18+ or 5.2.20+
+    references:
+      - https://spring.io/blog/2022/03/31/spring-framework-rce-early-announcement
+
+  - id: VULN-COMP-003
+    name: Jackson Databind Vulnerable Version
+    description: Jackson databind versions with known deserialization vulnerabilities
+    severity: high
+    confidence: medium
+    cwe: CWE-502
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - jackson
+      - deserialization
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>jackson-databind</artifactId>\s*<version>2\.([0-8]\.|9\.([0-9]\.)|10\.[0-3]\.)'
+          language: xml
+        - pattern: 'jackson-databind:2\.([0-8]\.|9\.([0-9]\.)|10\.[0-3]\.)'
+          language: gradle
+    remediation:
+      description: Upgrade to latest Jackson databind version (2.15.x+)
+    references:
+      - https://github.com/FasterXML/jackson-databind/blob/master/docs/release-notes/VERSION-2.x
+
+  - id: VULN-COMP-004
+    name: Apache Struts Vulnerable Version
+    description: Apache Struts versions with known RCE vulnerabilities
+    severity: critical
+    confidence: medium
+    cwe: CWE-94
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - struts
+      - rce
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>struts2-core</artifactId>\s*<version>2\.([0-4]\.|5\.[0-9]\.)'
+          language: xml
+    remediation:
+      description: Upgrade to latest Struts 2.5.x or migrate to different framework
+    references:
+      - https://struts.apache.org/security/
+
+  - id: VULN-COMP-005
+    name: Commons Collections Vulnerable Version
+    description: Apache Commons Collections with deserialization vulnerabilities
+    severity: high
+    confidence: medium
+    cwe: CWE-502
+    cve: CVE-2015-7501
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - deserialization
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>commons-collections</artifactId>\s*<version>[0-3]\.'
+          language: xml
+        - pattern: 'commons-collections:commons-collections:[0-3]\.'
+          language: gradle
+    remediation:
+      description: Upgrade to Commons Collections 4.4+
+    references:
+      - https://commons.apache.org/proper/commons-collections/security-reports.html
+
+  # ============================================================================
+  # JAVASCRIPT/NODE.JS VULNERABLE DEPENDENCIES
+  # ============================================================================
+
+  - id: VULN-COMP-010
+    name: Lodash Prototype Pollution
+    description: Lodash versions before 4.17.21 are vulnerable to prototype pollution
+    severity: high
+    confidence: medium
+    cwe: CWE-1321
+    cve: CVE-2021-23337
+    owasp: A06
+    tags:
+      - dependency
+      - javascript
+      - lodash
+      - prototype-pollution
+    file_patterns:
+      - "package.json"
+      - "package-lock.json"
+      - "yarn.lock"
+    detection:
+      patterns:
+        - pattern: '"lodash"\s*:\s*"[^4]|"lodash"\s*:\s*"4\.([0-9]|1[0-6])\.'
+          language: json
+        - pattern: '"lodash"\s*:\s*"4\.17\.([0-9]|1[0-9]|20)"'
+          language: json
+    remediation:
+      description: Upgrade to lodash 4.17.21 or later
+    references:
+      - https://snyk.io/vuln/SNYK-JS-LODASH-1040724
+
+  - id: VULN-COMP-011
+    name: Express.js Vulnerable Version
+    description: Express.js versions with known security vulnerabilities
+    severity: medium
+    confidence: medium
+    cwe: CWE-79
+    owasp: A06
+    tags:
+      - dependency
+      - javascript
+      - express
+    file_patterns:
+      - "package.json"
+    detection:
+      patterns:
+        - pattern: '"express"\s*:\s*"[0-3]\.'
+          language: json
+        - pattern: '"express"\s*:\s*"4\.([0-9]|1[0-6])\.'
+          language: json
+    remediation:
+      description: Upgrade to Express.js 4.17.3 or later
+    references:
+      - https://expressjs.com/en/advanced/security-updates.html
+
+  - id: VULN-COMP-012
+    name: Node-serialize Deserialization Vulnerability
+    description: node-serialize package allows arbitrary code execution
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A06
+    tags:
+      - dependency
+      - javascript
+      - deserialization
+      - rce
+    file_patterns:
+      - "package.json"
+    detection:
+      patterns:
+        - pattern: '"node-serialize"\s*:'
+          language: json
+    remediation:
+      description: Remove node-serialize and use JSON.parse/JSON.stringify instead
+    references:
+      - https://www.npmjs.com/advisories/311
+
+  - id: VULN-COMP-013
+    name: jQuery Vulnerable Version
+    description: jQuery versions with XSS vulnerabilities
+    severity: medium
+    confidence: medium
+    cwe: CWE-79
+    owasp: A06
+    tags:
+      - dependency
+      - javascript
+      - jquery
+      - xss
+    file_patterns:
+      - "package.json"
+      - "*.html"
+    detection:
+      patterns:
+        - pattern: '"jquery"\s*:\s*"[0-2]\.'
+          language: json
+        - pattern: '"jquery"\s*:\s*"3\.([0-4]\.|5\.[0-1])'
+          language: json
+        - pattern: 'jquery[.-]([0-2]\.|3\.[0-4]\.)'
+    remediation:
+      description: Upgrade to jQuery 3.6.0 or later
+    references:
+      - https://security.snyk.io/package/npm/jquery
+
+  # ============================================================================
+  # PYTHON VULNERABLE DEPENDENCIES
+  # ============================================================================
+
+  - id: VULN-COMP-020
+    name: Django Vulnerable Version
+    description: Django versions with known security vulnerabilities
+    severity: high
+    confidence: medium
+    cwe: CWE-89
+    owasp: A06
+    tags:
+      - dependency
+      - python
+      - django
+    file_patterns:
+      - "requirements.txt"
+      - "setup.py"
+      - "pyproject.toml"
+      - "Pipfile"
+    detection:
+      patterns:
+        - pattern: 'Django[=<>~]=?[0-2]\.'
+        - pattern: 'Django[=<>~]=?3\.([0-1]\.|2\.([0-9]|1[0-6]))'
+        - pattern: 'Django[=<>~]=?4\.([0-1]\.[0-8])'
+    remediation:
+      description: Upgrade to latest Django LTS version
+    references:
+      - https://www.djangoproject.com/weblog/
+
+  - id: VULN-COMP-021
+    name: Requests Vulnerable Version
+    description: Python requests library with known vulnerabilities
+    severity: medium
+    confidence: medium
+    cwe: CWE-20
+    owasp: A06
+    tags:
+      - dependency
+      - python
+      - requests
+    file_patterns:
+      - "requirements.txt"
+      - "setup.py"
+      - "pyproject.toml"
+    detection:
+      patterns:
+        - pattern: 'requests[=<>~]=?([0-1]\.|2\.([0-9]|1[0-9]|2[0-5])\.)'
+    remediation:
+      description: Upgrade to requests 2.31.0 or later
+    references:
+      - https://github.com/psf/requests/blob/main/HISTORY.md
+
+  - id: VULN-COMP-022
+    name: PyYAML Unsafe Load
+    description: PyYAML versions vulnerable to arbitrary code execution
+    severity: critical
+    confidence: medium
+    cwe: CWE-502
+    owasp: A06
+    tags:
+      - dependency
+      - python
+      - yaml
+      - deserialization
+    file_patterns:
+      - "requirements.txt"
+      - "*.py"
+    detection:
+      patterns:
+        - pattern: 'PyYAML[=<>~]=?([0-4]\.|5\.[0-3]\.)'
+          file_pattern: "requirements.txt"
+        - pattern: 'yaml\.load\s*\([^)]*\)'
+          language: python
+          missing: 'Loader='
+    remediation:
+      description: Upgrade to PyYAML 6.0+ and always use safe_load or specify SafeLoader
+    references:
+      - https://github.com/yaml/pyyaml/wiki/PyYAML-yaml.load(input)-Deprecation
+
+  - id: VULN-COMP-023
+    name: Pillow Vulnerable Version
+    description: Pillow versions with image parsing vulnerabilities
+    severity: high
+    confidence: medium
+    cwe: CWE-120
+    owasp: A06
+    tags:
+      - dependency
+      - python
+      - pillow
+      - image
+    file_patterns:
+      - "requirements.txt"
+      - "setup.py"
+    detection:
+      patterns:
+        - pattern: 'Pillow[=<>~]=?([0-8]\.|9\.([0-4]\.))'
+    remediation:
+      description: Upgrade to Pillow 10.0.0 or later
+    references:
+      - https://pillow.readthedocs.io/en/stable/releasenotes/
+
+  # ============================================================================
+  # GENERAL DEPENDENCY PATTERNS
+  # ============================================================================
+
+  - id: VULN-COMP-030
+    name: Outdated Major Version
+    description: Dependency is multiple major versions behind
+    severity: low
+    confidence: low
+    cwe: CWE-1104
+    owasp: A06
+    tags:
+      - dependency
+      - outdated
+    detection:
+      semantic:
+        version_check:
+          major_versions_behind: 2
+    remediation:
+      description: Review and update outdated dependencies
+    references:
+      - https://owasp.org/www-project-dependency-check/
+
+  - id: VULN-COMP-031
+    name: No Lock File Present
+    description: Project missing dependency lock file
+    severity: medium
+    confidence: high
+    cwe: CWE-1104
+    owasp: A06
+    tags:
+      - dependency
+      - supply-chain
+    detection:
+      file_absence:
+        - package-lock.json
+        - yarn.lock
+        - pnpm-lock.yaml
+        - Pipfile.lock
+        - poetry.lock
+        - Gemfile.lock
+        - Cargo.lock
+    remediation:
+      description: |
+        Generate and commit lock files:
+        - npm: npm install (creates package-lock.json)
+        - yarn: yarn install (creates yarn.lock)
+        - pip: pip freeze > requirements.txt or use pipenv/poetry
+    references:
+      - https://docs.npmjs.com/cli/v8/configuring-npm/package-lock-json
+
+  - id: VULN-COMP-032
+    name: Git Dependency Without Pinning
+    description: Dependency pulled from git without commit pinning
+    severity: medium
+    confidence: high
+    cwe: CWE-829
+    owasp: A06
+    tags:
+      - dependency
+      - supply-chain
+    detection:
+      patterns:
+        - pattern: '"[^"]+"\s*:\s*"git\+https?://[^#]+"'
+          language: json
+          description: Git dependency without commit hash
+        - pattern: 'git\+https?://[^@]+\.git(?!@)'
+        - pattern: '-e\s+git\+https?://[^@]+\.git(?!@)'
+    remediation:
+      description: Pin git dependencies to specific commit hashes
+      code_example:
+        json: |
+          {
+            "dependencies": {
+              "package": "git+https://github.com/org/repo.git#v1.0.0"
+            }
+          }
+    references:
+      - https://docs.npmjs.com/cli/v8/configuring-npm/package-json#git-urls-as-dependencies
+
+  - id: VULN-COMP-033
+    name: Wildcard Version Range
+    description: Dependency using wildcard or overly permissive version range
+    severity: medium
+    confidence: high
+    cwe: CWE-1104
+    owasp: A06
+    tags:
+      - dependency
+      - supply-chain
+    detection:
+      patterns:
+        - pattern: '"\w+"\s*:\s*"\*"'
+          language: json
+        - pattern: '"\w+"\s*:\s*"latest"'
+          language: json
+        - pattern: '"\w+"\s*:\s*">=\d+\.\d+\.\d+"'
+          language: json
+          description: Only lower bound specified
+        - pattern: '\w+>=\d+\.\d+(\.\d+)?(?!,)'
+          file_pattern: "requirements.txt"
+    remediation:
+      description: Use exact versions or caret ranges with upper bounds
+      code_example:
+        json: |
+          {
+            "dependencies": {
+              "package": "^1.2.3"  // Allows 1.x.x but not 2.0.0
+            }
+          }
+    references:
+      - https://docs.npmjs.com/cli/v8/configuring-npm/package-json#dependencies
+
+  # ============================================================================
+  # DEPENDENCY CONFUSION / SUPPLY CHAIN
+  # ============================================================================
+
+  - id: VULN-COMP-040
+    name: Internal Package Without Scope
+    description: Internal package without organization scope is vulnerable to dependency confusion
+    severity: high
+    confidence: medium
+    cwe: CWE-427
+    owasp: A06
+    tags:
+      - dependency
+      - supply-chain
+      - dependency-confusion
+    detection:
+      semantic:
+        internal_package_check:
+          - missing_scope
+          - not_published_to_public_registry
+    remediation:
+      description: |
+        Protect against dependency confusion:
+        - Use scoped packages (@org/package)
+        - Configure .npmrc to use private registry
+        - Reserve package names on public registry
+      code_example:
+        json: |
+          {
+            "name": "@mycompany/internal-package",
+            "publishConfig": {
+              "registry": "https://npm.mycompany.com"
+            }
+          }
+    references:
+      - https://medium.com/@alex.birsan/dependency-confusion-4a5d60fec610
+
+  - id: VULN-COMP-041
+    name: Typosquatting Risk
+    description: Package name similar to popular package (potential typosquatting)
+    severity: low
+    confidence: low
+    cwe: CWE-427
+    owasp: A06
+    tags:
+      - dependency
+      - supply-chain
+      - typosquatting
+    detection:
+      semantic:
+        similarity_check:
+          popular_packages:
+            - lodash
+            - express
+            - react
+            - vue
+            - angular
+            - axios
+            - moment
+          threshold: 0.8
+    remediation:
+      description: Verify package names carefully before installation
+    references:
+      - https://snyk.io/blog/typosquatting-attacks/
+
+  # ============================================================================
+  # SPECIFIC CVE PATTERNS
+  # ============================================================================
+
+  - id: VULN-COMP-050
+    name: Apache Commons Text Vulnerable Version
+    description: Apache Commons Text vulnerable to CVE-2022-42889 (Text4Shell)
+    severity: critical
+    confidence: high
+    cwe: CWE-94
+    cve: CVE-2022-42889
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - rce
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>commons-text</artifactId>\s*<version>1\.([0-9]\.)'
+          language: xml
+        - pattern: 'commons-text:1\.([0-9]\.)'
+          language: gradle
+    remediation:
+      description: Upgrade to Apache Commons Text 1.10.0 or later
+    references:
+      - https://nvd.nist.gov/vuln/detail/CVE-2022-42889
+
+  - id: VULN-COMP-051
+    name: Spring Cloud Function Vulnerable Version
+    description: Spring Cloud Function vulnerable to CVE-2022-22963
+    severity: critical
+    confidence: high
+    cwe: CWE-94
+    cve: CVE-2022-22963
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - spring
+      - rce
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>spring-cloud-function-core</artifactId>\s*<version>3\.([0-1]\.|2\.[0-1]\.)'
+          language: xml
+    remediation:
+      description: Upgrade to Spring Cloud Function 3.2.3 or later
+    references:
+      - https://nvd.nist.gov/vuln/detail/CVE-2022-22963
+
+  - id: VULN-COMP-052
+    name: Netty Vulnerable Version
+    description: Netty versions with HTTP/2 vulnerabilities
+    severity: high
+    confidence: medium
+    cwe: CWE-400
+    owasp: A06
+    tags:
+      - dependency
+      - java
+      - netty
+    file_patterns:
+      - "pom.xml"
+      - "build.gradle"
+    detection:
+      patterns:
+        - pattern: '<artifactId>netty-codec-http2</artifactId>\s*<version>4\.1\.([0-9]{1,2}|10[0-3])\.'
+          language: xml
+    remediation:
+      description: Upgrade to Netty 4.1.104 or later
+    references:
+      - https://github.com/netty/netty/security/advisories

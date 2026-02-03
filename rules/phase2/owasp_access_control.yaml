@@ -1,0 +1,185 @@
+# Phase 2: OWASP A01 Broken Access Control Rules
+# Authentication, Authorization, and Access Control vulnerabilities
+
+metadata:
+  category: "A01:2025"
+  category_name: "Broken Access Control"
+  description: "Rules for detecting access control vulnerabilities"
+  version: "2.0.0"
+
+rules:
+  # ============================================
+  # Authentication Bypass
+  # ============================================
+
+  - id: "A01-AUTH-001"
+    name: "Hardcoded Admin Bypass"
+    description: "Hardcoded admin credentials or bypass logic"
+    severity: critical
+    confidence: high
+    owasp_category: "A01:2025"
+    cwe: "CWE-798"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "isAdmin\\s*=\\s*true"
+        type: regex
+        message: "Hardcoded admin flag"
+      - pattern: "role\\s*==?\\s*[\"']admin[\"']"
+        type: regex
+        message: "Hardcoded admin role check"
+      - pattern: "username\\s*==?\\s*[\"']admin[\"']"
+        type: regex
+        message: "Hardcoded admin username"
+    remediation:
+      description: "Use proper role-based access control with database-backed roles"
+    tags: [auth-bypass, access-control, owasp-a01]
+
+  - id: "A01-AUTH-002"
+    name: "Missing Authentication Check"
+    description: "Endpoint without authentication annotation"
+    severity: high
+    confidence: medium
+    owasp_category: "A01:2025"
+    cwe: "CWE-306"
+    languages: [java]
+    detection_mode: pattern
+    patterns:
+      - pattern: "@(GetMapping|PostMapping|PutMapping|DeleteMapping|RequestMapping)(?!.*@PreAuthorize)(?!.*@Secured)"
+        type: regex
+        message: "Endpoint without security annotation"
+    remediation:
+      description: "Add @PreAuthorize or @Secured annotations to protected endpoints"
+    tags: [missing-auth, access-control, spring, owasp-a01]
+
+  # ============================================
+  # IDOR (Insecure Direct Object Reference)
+  # ============================================
+
+  - id: "A01-IDOR-001"
+    name: "Potential IDOR"
+    description: "Direct object reference without ownership validation"
+    severity: high
+    confidence: medium
+    owasp_category: "A01:2025"
+    cwe: "CWE-639"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "findById\\s*\\(\\s*(id|userId|\\w+Id)\\s*\\)"
+        type: regex
+        message: "Direct ID lookup without ownership check"
+      - pattern: "@PathVariable.*[iI]d.*findBy"
+        type: regex
+        message: "PathVariable ID used in query"
+    remediation:
+      description: "Validate that the authenticated user owns or has access to the requested resource"
+    tags: [idor, access-control, owasp-a01]
+
+  # ============================================
+  # Privilege Escalation
+  # ============================================
+
+  - id: "A01-PRIV-001"
+    name: "Mass Assignment"
+    description: "Object binding without field restrictions allows privilege escalation"
+    severity: high
+    confidence: medium
+    owasp_category: "A01:2025"
+    cwe: "CWE-915"
+    languages: [java]
+    detection_mode: pattern
+    patterns:
+      - pattern: "@RequestBody(?!.*@Valid).*\\s+\\w+"
+        type: regex
+        message: "RequestBody without validation"
+      - pattern: "BeanUtils\\.copyProperties\\s*\\("
+        type: regex
+        message: "Mass property copy"
+    remediation:
+      description: "Use DTOs with explicit field mapping. Never bind directly to domain objects."
+    tags: [mass-assignment, privilege-escalation, owasp-a01]
+
+  # ============================================
+  # Path Traversal
+  # ============================================
+
+  - id: "A01-PATH-001"
+    name: "Path Traversal"
+    description: "File path manipulation with user input"
+    severity: critical
+    confidence: high
+    owasp_category: "A01:2025"
+    cwe: "CWE-22"
+    languages: [java, python, javascript, php]
+    detection_mode: pattern
+    patterns:
+      - pattern: "new File\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "File path concatenation"
+      - pattern: "Paths\\.get\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "Path construction with concatenation"
+      - pattern: "File(Input|Output)Stream\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "FileStream with path concatenation"
+      - pattern: "open\\s*\\(.*\\+\\s*"
+        type: regex
+        message: "Python file open with concatenation"
+      - pattern: "fs\\.(readFile|writeFile)\\s*\\(.*\\+"
+        type: regex
+        message: "Node.js file operation with concatenation"
+    remediation:
+      description: "Validate and sanitize file paths. Use allowlists. Canonicalize paths."
+    tags: [path-traversal, lfi, owasp-a01]
+
+  # ============================================
+  # CORS Misconfiguration
+  # ============================================
+
+  - id: "A01-CORS-001"
+    name: "Permissive CORS"
+    description: "CORS configuration allows any origin"
+    severity: medium
+    confidence: high
+    owasp_category: "A01:2025"
+    cwe: "CWE-942"
+    languages: [java, javascript, python]
+    detection_mode: pattern
+    patterns:
+      - pattern: "Access-Control-Allow-Origin.*\\*"
+        type: regex
+        message: "CORS allows all origins"
+      - pattern: "allowedOrigins.*\\*"
+        type: regex
+        message: "Spring CORS allows all origins"
+      - pattern: "cors\\s*\\(.*origin.*true"
+        type: regex
+        message: "Express CORS reflects origin"
+    remediation:
+      description: "Configure specific allowed origins. Never use wildcards with credentials."
+    tags: [cors, access-control, owasp-a01]
+
+  # ============================================
+  # JWT/Token Issues
+  # ============================================
+
+  - id: "A01-JWT-001"
+    name: "JWT Algorithm None"
+    description: "JWT accepting 'none' algorithm"
+    severity: critical
+    confidence: high
+    owasp_category: "A01:2025"
+    cwe: "CWE-345"
+    languages: [java, python, javascript]
+    detection_mode: pattern
+    patterns:
+      - pattern: "algorithm.*none"
+        type: regex
+        message: "JWT none algorithm"
+      - pattern: "setSigningKey\\s*\\(\\s*null"
+        type: regex
+        message: "JWT null signing key"
+    remediation:
+      description: "Always validate JWT signature with a strong algorithm (RS256, HS256)"
+    tags: [jwt, authentication, owasp-a01]

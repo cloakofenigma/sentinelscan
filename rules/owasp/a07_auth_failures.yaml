@@ -1,0 +1,210 @@
+# OWASP A07:2025 - Identification and Authentication Failures
+
+metadata:
+  category: A07
+  name: Identification and Authentication Failures
+  description: "Rules for detecting authentication and session management flaws"
+  version: "1.0.0"
+
+rules:
+  - id: AUTH-001
+    name: Hardcoded Credentials in Code
+    description: Username or password hardcoded in source code
+    severity: critical
+    confidence: medium
+    cwe: CWE-798
+    owasp: A07
+    tags: [authentication, credentials, hardcoded]
+    languages: [java, python, javascript, csharp, go]
+    detection:
+      patterns:
+        - pattern: "(password|passwd|pwd)\\s*=\\s*[\"'][^\"']{4,}[\"']"
+        - pattern: "credentials\\s*\\(\\s*[\"'][^\"']+[\"']\\s*,\\s*[\"'][^\"']+[\"']"
+        - pattern: "auth\\s*=\\s*\\(\\s*[\"'][^\"']+[\"']\\s*,\\s*[\"'][^\"']+[\"']"
+    remediation:
+      description: "Use environment variables or secret management services"
+
+  - id: AUTH-002
+    name: Weak Password Requirements
+    description: Password validation allows weak passwords
+    severity: medium
+    confidence: medium
+    cwe: CWE-521
+    owasp: A07
+    tags: [authentication, password, policy]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "password\\.length\\s*>=?\\s*[1-7]\\b"
+          language: javascript
+        - pattern: "len\\s*\\(\\s*password\\s*\\)\\s*>=?\\s*[1-7]\\b"
+          language: python
+        - pattern: "@Size\\s*\\(\\s*min\\s*=\\s*[1-7]"
+          language: java
+        - pattern: "@Length\\s*\\(\\s*min\\s*=\\s*[1-7]"
+          language: java
+        - pattern: "minLength\\s*:\\s*[1-7]\\b"
+    remediation:
+      description: "Enforce minimum 12 character passwords with complexity requirements"
+
+  - id: AUTH-003
+    name: Missing Rate Limiting
+    description: Authentication endpoint without rate limiting
+    severity: medium
+    confidence: low
+    cwe: CWE-307
+    owasp: A07
+    tags: [authentication, rate-limiting, brute-force]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "@PostMapping.*login"
+          language: java
+        - pattern: "@RequestMapping.*auth"
+          language: java
+        - pattern: "app\\.(post|router).*login"
+          language: javascript
+        - pattern: "def\\s+login"
+          language: python
+    remediation:
+      description: "Implement rate limiting using Bucket4j, redis-rate-limiter, or WAF"
+
+  - id: AUTH-004
+    name: Session Fixation
+    description: Session not regenerated after authentication
+    severity: high
+    confidence: medium
+    cwe: CWE-384
+    owasp: A07
+    tags: [authentication, session, fixation]
+    languages: [java, python, php]
+    detection:
+      patterns:
+        - pattern: "session\\.setAttribute.*after.*login"
+          language: java
+        - pattern: "request\\.getSession\\(true\\)"
+          language: java
+        - pattern: "session_regenerate_id\\s*\\(\\s*false"
+          language: php
+    remediation:
+      description: "Regenerate session ID after successful authentication"
+
+  - id: AUTH-005
+    name: JWT Algorithm None
+    description: JWT configured to accept 'none' algorithm
+    severity: critical
+    confidence: high
+    cwe: CWE-345
+    owasp: A07
+    tags: [authentication, jwt, algorithm]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "algorithm.*none"
+        - pattern: "setSigningKey\\s*\\(\\s*null"
+          language: java
+        - pattern: "algorithms.*none"
+    remediation:
+      description: "Always validate JWT signature with strong algorithm (RS256, HS256)"
+
+  - id: AUTH-006
+    name: Weak JWT Secret
+    description: JWT signed with weak or short secret key
+    severity: high
+    confidence: medium
+    cwe: CWE-326
+    owasp: A07
+    tags: [authentication, jwt, secret]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "secret\\s*=\\s*[\"'][^\"']{1,20}[\"']"
+        - pattern: "JWT_SECRET\\s*=\\s*[\"'][^\"']{1,20}[\"']"
+        - pattern: "signWith.*[\"'][^\"']{1,20}[\"']"
+          language: java
+    remediation:
+      description: "Use minimum 256-bit secret for HS256 or use asymmetric keys (RS256)"
+
+  - id: AUTH-007
+    name: Missing Session Timeout
+    description: Session configured without timeout
+    severity: medium
+    confidence: medium
+    cwe: CWE-613
+    owasp: A07
+    tags: [authentication, session, timeout]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "setMaxInactiveInterval\\s*\\(\\s*-1"
+          language: java
+        - pattern: "session\\.permanent\\s*=\\s*True"
+          language: python
+        - pattern: "maxAge\\s*:\\s*null"
+          language: javascript
+    remediation:
+      description: "Configure appropriate session timeout (15-30 minutes for sensitive apps)"
+
+  - id: AUTH-008
+    name: Insecure Cookie Configuration
+    description: Session cookie missing security flags
+    severity: medium
+    confidence: high
+    cwe: CWE-614
+    owasp: A07
+    tags: [authentication, cookie, session]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "setHttpOnly\\s*\\(\\s*false"
+          language: java
+        - pattern: "setSecure\\s*\\(\\s*false"
+          language: java
+        - pattern: "httpOnly\\s*:\\s*false"
+          language: javascript
+        - pattern: "secure\\s*:\\s*false"
+          language: javascript
+        - pattern: "SESSION_COOKIE_HTTPONLY\\s*=\\s*False"
+          language: python
+    remediation:
+      description: "Set HttpOnly, Secure, and SameSite flags on session cookies"
+
+  - id: AUTH-009
+    name: Password in Query String
+    description: Password transmitted via URL query parameter
+    severity: high
+    confidence: high
+    cwe: CWE-598
+    owasp: A07
+    tags: [authentication, password, url]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "getParameter\\s*\\(\\s*[\"']password[\"']\\s*\\)"
+          language: java
+        - pattern: "request\\.args\\.get\\s*\\(\\s*[\"']password[\"']"
+          language: python
+        - pattern: "req\\.query\\.password"
+          language: javascript
+    remediation:
+      description: "Always send passwords via POST body over HTTPS"
+
+  - id: AUTH-010
+    name: Exposed Admin Interface
+    description: Administrative interface accessible without proper authentication
+    severity: high
+    confidence: medium
+    cwe: CWE-306
+    owasp: A07
+    tags: [authentication, admin, access-control]
+    languages: [java, python, javascript]
+    detection:
+      patterns:
+        - pattern: "@RequestMapping.*admin.*permitAll"
+          language: java
+        - pattern: "app\\.(get|post).*admin(?!.*auth)"
+          language: javascript
+        - pattern: "path.*admin.*authentication_classes.*\\[\\]"
+          language: python
+    remediation:
+      description: "Require authentication and authorization for all admin endpoints"

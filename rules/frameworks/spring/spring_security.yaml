@@ -1,0 +1,209 @@
+# Spring Framework Security Rules
+
+metadata:
+  framework: spring
+  name: Spring Security Rules
+  description: "Security rules for Spring Boot applications"
+  version: "1.0.0"
+
+rules:
+  - id: SPRING-001
+    name: CSRF Protection Disabled
+    description: CSRF protection is disabled in Spring Security configuration
+    severity: high
+    confidence: high
+    cwe: CWE-352
+    owasp: A01
+    tags: [spring, csrf, security-config]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "csrf\\s*\\(\\s*\\)\\s*\\.\\s*disable\\s*\\(\\s*\\)"
+        - pattern: "csrf\\s*\\(.*AbstractHttpConfigurer::disable"
+        - pattern: "csrf\\.disable\\s*\\(\\s*\\)"
+    remediation:
+      description: "Enable CSRF protection for state-changing operations"
+
+  - id: SPRING-002
+    name: Permissive Security Configuration
+    description: Security config permits all requests without authentication
+    severity: critical
+    confidence: high
+    cwe: CWE-862
+    owasp: A01
+    tags: [spring, authentication, security-config]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "anyRequest\\s*\\(\\s*\\)\\s*\\.\\s*permitAll\\s*\\(\\s*\\)"
+        - pattern: "authorizeHttpRequests.*permitAll"
+        - pattern: "authorizeRequests.*permitAll"
+    remediation:
+      description: "Use anyRequest().authenticated() as default. Explicitly permit only public endpoints."
+
+  - id: SPRING-003
+    name: Missing Method Security
+    description: Controller method without security annotation
+    severity: info
+    confidence: low
+    cwe: CWE-862
+    owasp: A01
+    tags: [spring, authorization, method-security]
+    languages: [java]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "@(PostMapping|PutMapping|DeleteMapping).*(?!.*@PreAuthorize)(?!.*@Secured).*\\{[^}]*save|delete|update"
+    remediation:
+      description: "Add @PreAuthorize or @Secured annotations to protected endpoints"
+
+  - id: SPRING-004
+    name: Hardcoded JWT Secret
+    description: JWT secret key hardcoded in source
+    severity: critical
+    confidence: high
+    cwe: CWE-321
+    owasp: A02
+    tags: [spring, jwt, secret]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "setSigningKey\\s*\\(\\s*[\"'][^\"']{1,50}[\"']"
+        - pattern: "secretKey\\s*=\\s*[\"'][A-Za-z0-9+/=]{10,}[\"']"
+        - pattern: "@Value.*jwt.*secret.*default\\s*=\\s*[\"']"
+    remediation:
+      description: "Use environment variables or secret management for JWT keys"
+
+  - id: SPRING-005
+    name: SQL Injection in JPA Query
+    description: JPA query with string concatenation
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags: [spring, sql-injection, jpa]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "createNativeQuery\\s*\\(\\s*[\"'].*\\s*\\+\\s*"
+        - pattern: "createQuery\\s*\\(\\s*[\"'].*\\s*\\+\\s*"
+        - pattern: "@Query.*\\+\\s*"
+    remediation:
+      description: "Use named parameters :param instead of string concatenation"
+
+  - id: SPRING-006
+    name: Actuator Endpoints Exposed
+    description: Spring Actuator endpoints exposed without authentication
+    severity: high
+    confidence: high
+    cwe: CWE-200
+    owasp: A01
+    tags: [spring, actuator, exposure]
+    languages: [java, yaml, properties]
+    detection:
+      patterns:
+        - pattern: "management\\.endpoints\\.web\\.exposure\\.include\\s*=\\s*\\*"
+        - pattern: "management\\.security\\.enabled\\s*=\\s*false"
+        - pattern: "endpoints:\n\\s+web:\n\\s+exposure:\n\\s+include:\\s*\\*"
+    remediation:
+      description: "Restrict actuator endpoints. Require authentication."
+
+  - id: SPRING-007
+    name: Insecure Session Configuration
+    description: Session configured without security attributes
+    severity: medium
+    confidence: high
+    cwe: CWE-614
+    owasp: A07
+    tags: [spring, session, cookie]
+    languages: [java, yaml, properties]
+    detection:
+      patterns:
+        - pattern: "server\\.servlet\\.session\\.cookie\\.http-only\\s*=\\s*false"
+        - pattern: "server\\.servlet\\.session\\.cookie\\.secure\\s*=\\s*false"
+        - pattern: "setHttpOnly\\s*\\(\\s*false\\s*\\)"
+    remediation:
+      description: "Enable HttpOnly and Secure flags on session cookies"
+
+  - id: SPRING-008
+    name: Debug Mode in Production
+    description: Debug or dev profile active in production config
+    severity: medium
+    confidence: medium
+    cwe: CWE-489
+    owasp: A05
+    tags: [spring, debug, profile]
+    languages: [yaml, properties]
+    detection:
+      patterns:
+        - pattern: "spring\\.profiles\\.active\\s*=\\s*dev"
+        - pattern: "debug\\s*=\\s*true"
+        - pattern: "logging\\.level\\.root\\s*=\\s*DEBUG"
+    remediation:
+      description: "Use production profile with appropriate logging levels"
+
+  - id: SPRING-009
+    name: Path Traversal in File Handler
+    description: File operation with user-controlled path
+    severity: critical
+    confidence: high
+    cwe: CWE-22
+    owasp: A01
+    tags: [spring, path-traversal, file]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "new File\\s*\\(.*getParameter"
+        - pattern: "Paths\\.get\\s*\\(.*getParameter"
+        - pattern: "ResourceUtils\\.getFile\\s*\\(.*\\+"
+    remediation:
+      description: "Validate file paths. Use allowlist. Canonicalize before use."
+
+  - id: SPRING-010
+    name: Mass Assignment Vulnerability
+    description: Request body bound directly to entity without DTO
+    severity: high
+    confidence: medium
+    cwe: CWE-915
+    owasp: A01
+    tags: [spring, mass-assignment, binding]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "@RequestBody\\s+(?!.*DTO|.*Request|.*Command)\\w+Entity"
+        - pattern: "BeanUtils\\.copyProperties\\s*\\(.*request"
+    remediation:
+      description: "Use DTOs with explicit field mapping"
+
+  - id: SPRING-011
+    name: Insecure CORS Configuration
+    description: CORS allows all origins or reflects origin
+    severity: medium
+    confidence: high
+    cwe: CWE-942
+    owasp: A01
+    tags: [spring, cors]
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "allowedOrigins\\s*\\(\\s*[\"']\\*[\"']\\s*\\)"
+        - pattern: "allowedOriginPatterns\\s*\\(\\s*[\"']\\*[\"']\\s*\\)"
+        - pattern: "Access-Control-Allow-Origin.*\\*"
+    remediation:
+      description: "Configure specific allowed origins. Never use wildcards with credentials."
+
+  - id: SPRING-012
+    name: Missing Input Validation
+    description: Controller method without input validation
+    severity: info
+    confidence: low
+    cwe: CWE-20
+    owasp: A03
+    tags: [spring, validation, input]
+    languages: [java]
+    enabled: false
+    detection:
+      patterns:
+        - pattern: "@PostMapping.*@RequestBody(?!.*@Valid)\\s+\\w+Request"
+    remediation:
+      description: "Add @Valid annotation and define validation constraints"

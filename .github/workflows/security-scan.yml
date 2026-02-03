@@ -1,0 +1,208 @@
+# SentinelScan GitHub Actions Workflow
+# Runs security scans on pull requests and pushes
+
+name: SentinelScan
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+  workflow_dispatch:
+    inputs:
+      severity_threshold:
+        description: 'Minimum severity to report'
+        required: false
+        default: 'medium'
+        type: choice
+        options:
+          - low
+          - medium
+          - high
+          - critical
+
+env:
+  PYTHON_VERSION: '3.10'
+  SEVERITY_THRESHOLD: ${{ github.event.inputs.severity_threshold || 'medium' }}
+
+jobs:
+  security-scan:
+    name: SentinelScan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-sentinelscan
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install SentinelScan
+        run: |
+          pip install --upgrade pip
+          # Install from local path or PyPI
+          if [ -f "setup.py" ] || [ -f "pyproject.toml" ]; then
+            pip install -e .
+          else
+            pip install sentinelscan
+          fi
+          # Install additional dependencies
+          pip install tree-sitter tree-sitter-java tree-sitter-python tree-sitter-javascript
+
+      - name: Run SentinelScan
+        id: scan
+        run: |
+          # Create output directory
+          mkdir -p security-reports
+
+          # Run scan with SARIF output
+          python -m scanengine.cli scan . \
+            --severity-min ${{ env.SEVERITY_THRESHOLD }} \
+            --format sarif \
+            --output security-reports/results.sarif \
+            --filter-test-files \
+            || true
+
+          # Also generate JSON for artifacts
+          python -m scanengine.cli scan . \
+            --severity-min ${{ env.SEVERITY_THRESHOLD }} \
+            --format json \
+            --output security-reports/results.json \
+            --filter-test-files \
+            || true
+
+          # Count findings
+          if [ -f security-reports/results.json ]; then
+            CRITICAL=$(jq '[.findings[] | select(.severity == "critical")] | length' security-reports/results.json)
+            HIGH=$(jq '[.findings[] | select(.severity == "high")] | length' security-reports/results.json)
+            MEDIUM=$(jq '[.findings[] | select(.severity == "medium")] | length' security-reports/results.json)
+            TOTAL=$(jq '.findings | length' security-reports/results.json)
+            echo "critical_count=$CRITICAL" >> $GITHUB_OUTPUT
+            echo "high_count=$HIGH" >> $GITHUB_OUTPUT
+            echo "medium_count=$MEDIUM" >> $GITHUB_OUTPUT
+            echo "total_count=$TOTAL" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: security-reports/results.sarif
+          category: sentinelscan
+
+      - name: Upload scan artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-scan-results
+          path: security-reports/
+          retention-days: 30
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const critical = '${{ steps.scan.outputs.critical_count }}' || '0';
+            const high = '${{ steps.scan.outputs.high_count }}' || '0';
+            const medium = '${{ steps.scan.outputs.medium_count }}' || '0';
+            const total = '${{ steps.scan.outputs.total_count }}' || '0';
+
+            let emoji = '✅';
+            let status = 'No security issues found';
+
+            if (parseInt(critical) > 0) {
+              emoji = '🔴';
+              status = `Found ${critical} critical issues`;
+            } else if (parseInt(high) > 0) {
+              emoji = '🟠';
+              status = `Found ${high} high severity issues`;
+            } else if (parseInt(medium) > 0) {
+              emoji = '🟡';
+              status = `Found ${medium} medium severity issues`;
+            } else if (parseInt(total) > 0) {
+              emoji = '🟢';
+              status = `Found ${total} low severity issues`;
+            }
+
+            const body = `## ${emoji} SentinelScan Results
+
+            | Severity | Count |
+            |----------|-------|
+            | Critical | ${critical} |
+            | High | ${high} |
+            | Medium | ${medium} |
+            | **Total** | **${total}** |
+
+            ${parseInt(critical) > 0 || parseInt(high) > 0 ? '⚠️ **Action Required**: Please review and fix the security issues before merging.' : ''}
+
+            📊 View detailed results in the [Security tab](../security/code-scanning) or download the [scan artifacts](../actions/runs/${{ github.run_id }}).
+
+            ---
+            *Scanned by SentinelScan*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+      - name: Fail on critical findings
+        if: steps.scan.outputs.critical_count != '0' && steps.scan.outputs.critical_count != ''
+        run: |
+          echo "::error::Found ${{ steps.scan.outputs.critical_count }} critical security issues!"
+          exit 1
+
+  # Optional: LLM-enhanced analysis for critical findings
+  llm-analysis:
+    name: LLM Analysis (Optional)
+    runs-on: ubuntu-latest
+    needs: security-scan
+    if: github.event_name == 'pull_request' && needs.security-scan.outputs.critical_count != '0'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download scan results
+        uses: actions/download-artifact@v4
+        with:
+          name: security-scan-results
+          path: security-reports/
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: pip install sentinelscan anthropic
+
+      - name: Run LLM Analysis
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python -m scanengine.llm_analyze . \
+            --input security-reports/results.json \
+            --explain \
+            --remediate \
+            --output security-reports/llm-analysis.json \
+            --limit 5

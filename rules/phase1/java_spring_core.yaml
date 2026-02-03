@@ -1,0 +1,602 @@
+# Phase 1 - Core Java/Spring Security Rules
+# High-confidence rules with minimal false positives
+
+metadata:
+  name: Java Spring Core Security Rules
+  description: Essential security rules for Java and Spring Boot applications
+  version: "1.0.0"
+  phase: 1
+
+rules:
+  # ============================================================================
+  # SQL INJECTION
+  # ============================================================================
+
+  - id: JAVA-SQLI-001
+    name: MyBatis String Interpolation
+    description: Using ${} instead of #{} in MyBatis allows SQL injection
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags:
+      - sql-injection
+      - mybatis
+      - java
+    languages:
+      - xml
+    file_patterns:
+      - "*Mapper.xml"
+      - "*Repository.xml"
+      - "*Dao.xml"
+    detection:
+      patterns:
+        - pattern: "(select|insert|update|delete|where|and|or|order by|group by)[^<]*\\$\\{[^}]+\\}"
+    remediation:
+      description: Replace ${} with #{} for parameterized queries
+      code_example:
+        xml: |
+          <!-- Vulnerable -->
+          <select id="findUser">
+            SELECT * FROM users WHERE name = '${name}'
+          </select>
+
+          <!-- Safe -->
+          <select id="findUser">
+            SELECT * FROM users WHERE name = #{name}
+          </select>
+    references:
+      - https://mybatis.org/mybatis-3/sqlmap-xml.html
+
+  - id: JAVA-SQLI-002
+    name: JPA Native Query String Concatenation
+    description: String concatenation in JPA native queries leads to SQL injection
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags:
+      - sql-injection
+      - jpa
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'createNativeQuery\s*\(\s*"[^"]*"\s*\+\s*\w+'
+        - pattern: 'createNativeQuery\s*\(\s*[^)]*\+[^)]*\)'
+        - pattern: '@Query\s*\([^)]*nativeQuery\s*=\s*true[^)]*\)[^;]*String\s+\w+\s*\+'
+    remediation:
+      description: Use named parameters or positional parameters
+      code_example:
+        java: |
+          // Vulnerable
+          em.createNativeQuery("SELECT * FROM users WHERE name = '" + name + "'");
+
+          // Safe - named parameter
+          em.createNativeQuery("SELECT * FROM users WHERE name = :name")
+            .setParameter("name", name);
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html
+
+  - id: JAVA-SQLI-003
+    name: JDBC Statement String Concatenation
+    description: String concatenation in JDBC statements
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags:
+      - sql-injection
+      - jdbc
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'executeQuery\s*\(\s*"[^"]*"\s*\+\s*\w+'
+        - pattern: 'executeUpdate\s*\(\s*"[^"]*"\s*\+\s*\w+'
+        - pattern: 'execute\s*\(\s*"[^"]*"\s*\+\s*\w+'
+        - pattern: 'Statement\s+\w+[^;]*createStatement[^;]*execute\w*\s*\([^)]*\+'
+    remediation:
+      description: Use PreparedStatement with parameterized queries
+      code_example:
+        java: |
+          // Vulnerable
+          stmt.executeQuery("SELECT * FROM users WHERE id = " + userId);
+
+          // Safe
+          PreparedStatement pstmt = conn.prepareStatement(
+              "SELECT * FROM users WHERE id = ?");
+          pstmt.setInt(1, userId);
+          pstmt.executeQuery();
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Query_Parameterization_Cheat_Sheet.html
+
+  # ============================================================================
+  # COMMAND INJECTION
+  # ============================================================================
+
+  - id: JAVA-CMDI-001
+    name: Runtime.exec with User Input
+    description: User input passed to Runtime.exec() enables command injection
+    severity: critical
+    confidence: high
+    cwe: CWE-78
+    owasp: A03
+    tags:
+      - command-injection
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'Runtime\.getRuntime\s*\(\s*\)\.exec\s*\(\s*[^)]*\+'
+        - pattern: 'Runtime\.getRuntime\s*\(\s*\)\.exec\s*\(\s*\w+\s*\)'
+        - pattern: 'ProcessBuilder\s*\([^)]*\+[^)]*\)'
+    remediation:
+      description: Avoid shell commands with user input, use ProcessBuilder with argument array
+      code_example:
+        java: |
+          // Vulnerable
+          Runtime.getRuntime().exec("ping " + userInput);
+
+          // Safe - use argument array
+          ProcessBuilder pb = new ProcessBuilder("ping", "-c", "4", validatedHost);
+          pb.start();
+    references:
+      - https://cwe.mitre.org/data/definitions/78.html
+
+  # ============================================================================
+  # PATH TRAVERSAL
+  # ============================================================================
+
+  - id: JAVA-PATH-001
+    name: Path Traversal in File Operations
+    description: User input used in file path without validation
+    severity: high
+    confidence: medium
+    cwe: CWE-22
+    owasp: A01
+    tags:
+      - path-traversal
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'new\s+File\s*\([^)]*request\.getParameter'
+        - pattern: 'new\s+File\s*\([^)]*\+[^)]*\)'
+        - pattern: 'Paths\.get\s*\([^)]*request\.'
+        - pattern: 'Files\.(read|write|copy|move|delete)\w*\s*\([^)]*\+[^)]*\)'
+        - pattern: 'FileInputStream\s*\([^)]*\+[^)]*\)'
+        - pattern: 'FileOutputStream\s*\([^)]*\+[^)]*\)'
+    remediation:
+      description: Validate and sanitize file paths, use allowlist approach
+      code_example:
+        java: |
+          // Vulnerable
+          File file = new File(uploadDir + "/" + request.getParameter("filename"));
+
+          // Safe
+          String filename = FilenameUtils.getName(request.getParameter("filename"));
+          Path safePath = Paths.get(uploadDir).resolve(filename).normalize();
+          if (!safePath.startsWith(Paths.get(uploadDir))) {
+              throw new SecurityException("Path traversal attempt");
+          }
+    references:
+      - https://owasp.org/www-community/attacks/Path_Traversal
+
+  # ============================================================================
+  # XSS
+  # ============================================================================
+
+  - id: JAVA-XSS-001
+    name: Direct Response Writer Output
+    description: User input written directly to response without encoding
+    severity: high
+    confidence: medium
+    cwe: CWE-79
+    owasp: A03
+    tags:
+      - xss
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'getWriter\s*\(\s*\)\.print\w*\s*\([^)]*request\.getParameter'
+        - pattern: 'getWriter\s*\(\s*\)\.write\s*\([^)]*request\.getParameter'
+        - pattern: 'getOutputStream\s*\(\s*\)\.write\s*\([^)]*request\.'
+        - pattern: 'response\.getWriter\s*\(\s*\)[^;]*\+[^;]*request\.'
+    remediation:
+      description: Encode output using OWASP Java Encoder
+      code_example:
+        java: |
+          // Vulnerable
+          response.getWriter().print("<div>" + request.getParameter("name") + "</div>");
+
+          // Safe
+          import org.owasp.encoder.Encode;
+          response.getWriter().print("<div>" + Encode.forHtml(request.getParameter("name")) + "</div>");
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
+
+  # ============================================================================
+  # SPRING SECURITY
+  # ============================================================================
+
+  - id: SPRING-SEC-001
+    name: CSRF Protection Disabled
+    description: CSRF protection disabled in Spring Security
+    severity: high
+    confidence: high
+    cwe: CWE-352
+    owasp: A01
+    tags:
+      - csrf
+      - spring
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: '\.csrf\s*\(\s*\)\s*\.disable\s*\(\s*\)'
+        - pattern: 'csrf\s*\.\s*disable'
+        - pattern: 'http\.csrf\s*\(\s*csrf\s*->\s*csrf\.disable'
+    remediation:
+      description: Enable CSRF protection for web applications (can be disabled for pure APIs)
+      code_example:
+        java: |
+          // For APIs using JWT, CSRF can be disabled
+          // For session-based auth, keep CSRF enabled
+          http.csrf(csrf -> csrf
+              .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+          );
+    references:
+      - https://docs.spring.io/spring-security/reference/features/exploits/csrf.html
+
+  - id: SPRING-SEC-002
+    name: Permit All on Sensitive Endpoints
+    description: Sensitive endpoints configured with permitAll()
+    severity: high
+    confidence: medium
+    cwe: CWE-862
+    owasp: A01
+    tags:
+      - authorization
+      - spring
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'antMatchers\s*\(\s*"[^"]*/(admin|user|api|private|internal)[^"]*"\s*\)[^;]*permitAll'
+        - pattern: 'requestMatchers\s*\(\s*"[^"]*/(admin|user|api|private|internal)[^"]*"\s*\)[^;]*permitAll'
+        - pattern: '\.permitAll\s*\(\s*\)[^}]*(admin|user|private|internal)'
+    remediation:
+      description: Require authentication for sensitive endpoints
+      code_example:
+        java: |
+          http.authorizeHttpRequests(auth -> auth
+              .requestMatchers("/public/**").permitAll()
+              .requestMatchers("/admin/**").hasRole("ADMIN")
+              .anyRequest().authenticated()
+          );
+    references:
+      - https://docs.spring.io/spring-security/reference/servlet/authorization/authorize-http-requests.html
+
+  - id: SPRING-SEC-003
+    name: Missing @PreAuthorize on Controller
+    description: Controller method modifying data without authorization annotation
+    severity: medium
+    confidence: medium
+    cwe: CWE-862
+    owasp: A01
+    tags:
+      - authorization
+      - spring
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: '@(Post|Put|Delete|Patch)Mapping[^@]*public\s+\w+\s+\w+\s*\([^)]*\)'
+          missing: '@PreAuthorize|@Secured|@RolesAllowed'
+    remediation:
+      description: Add authorization annotations to protect sensitive endpoints
+      code_example:
+        java: |
+          @PreAuthorize("hasRole('ADMIN')")
+          @DeleteMapping("/users/{id}")
+          public ResponseEntity<?> deleteUser(@PathVariable Long id) {
+              // ...
+          }
+    references:
+      - https://docs.spring.io/spring-security/reference/servlet/authorization/method-security.html
+
+  # ============================================================================
+  # SPRING ACTUATOR
+  # ============================================================================
+
+  - id: SPRING-ACT-001
+    name: Actuator Endpoints Exposed
+    description: Spring Actuator endpoints exposed without authentication
+    severity: high
+    confidence: medium
+    cwe: CWE-200
+    owasp: A05
+    tags:
+      - actuator
+      - spring
+      - information-disclosure
+    languages:
+      - java
+      - properties
+      - yaml
+    file_patterns:
+      - "application*.properties"
+      - "application*.yml"
+      - "application*.yaml"
+    detection:
+      patterns:
+        - pattern: 'management\.endpoints\.web\.exposure\.include\s*=\s*\*'
+        - pattern: 'management\.endpoints\.web\.exposure\.include:\s*\*'
+        - pattern: 'management\.endpoints\.web\.exposure\.include:\s*"?\*"?'
+        - pattern: 'management\.endpoint\.\w+\.enabled\s*=\s*true'
+    remediation:
+      description: Limit actuator exposure and require authentication
+      code_example:
+        properties: |
+          # Expose only specific endpoints
+          management.endpoints.web.exposure.include=health,info
+
+          # Require authentication for actuator
+          management.endpoints.web.base-path=/manage
+          # Configure security to protect /manage/**
+    references:
+      - https://docs.spring.io/spring-boot/docs/current/reference/html/actuator.html
+
+  # ============================================================================
+  # DESERIALIZATION
+  # ============================================================================
+
+  - id: JAVA-DESER-001
+    name: Unsafe Object Deserialization
+    description: ObjectInputStream without filtering allows RCE
+    severity: critical
+    confidence: high
+    cwe: CWE-502
+    owasp: A08
+    tags:
+      - deserialization
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'new\s+ObjectInputStream\s*\('
+        - pattern: '\.readObject\s*\(\s*\)'
+        - pattern: '\.readUnshared\s*\(\s*\)'
+    remediation:
+      description: Avoid Java native serialization, use JSON. If required, use ObjectInputFilter.
+      code_example:
+        java: |
+          // Safe - with ObjectInputFilter (Java 9+)
+          ObjectInputStream ois = new ObjectInputStream(inputStream);
+          ois.setObjectInputFilter(filterInfo -> {
+              if (filterInfo.serialClass() == null) {
+                  return ObjectInputFilter.Status.UNDECIDED;
+              }
+              if (ALLOWED_CLASSES.contains(filterInfo.serialClass().getName())) {
+                  return ObjectInputFilter.Status.ALLOWED;
+              }
+              return ObjectInputFilter.Status.REJECTED;
+          });
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Deserialization_Cheat_Sheet.html
+
+  # ============================================================================
+  # LOGGING
+  # ============================================================================
+
+  - id: JAVA-LOG-001
+    name: Sensitive Data in Logs
+    description: Potentially sensitive data written to logs
+    severity: medium
+    confidence: medium
+    cwe: CWE-532
+    owasp: A09
+    tags:
+      - logging
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'log(ger)?\.(info|debug|warn|error|trace)\s*\([^)]*password'
+        - pattern: 'log(ger)?\.(info|debug|warn|error|trace)\s*\([^)]*secret'
+        - pattern: 'log(ger)?\.(info|debug|warn|error|trace)\s*\([^)]*token'
+        - pattern: 'log(ger)?\.(info|debug|warn|error|trace)\s*\([^)]*apiKey'
+        - pattern: 'log(ger)?\.(info|debug|warn|error|trace)\s*\([^)]*creditCard'
+    remediation:
+      description: Never log sensitive data, mask if necessary
+      code_example:
+        java: |
+          // Bad
+          logger.info("User logged in with password: {}", password);
+
+          // Good
+          logger.info("User {} logged in successfully", username);
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html
+
+  # ============================================================================
+  # CRYPTOGRAPHY
+  # ============================================================================
+
+  - id: JAVA-CRYPTO-001
+    name: Weak Cryptographic Algorithm
+    description: Using weak or broken cryptographic algorithms
+    severity: high
+    confidence: high
+    cwe: CWE-327
+    owasp: A02
+    tags:
+      - cryptography
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'MessageDigest\.getInstance\s*\(\s*"MD5"\s*\)'
+        - pattern: 'MessageDigest\.getInstance\s*\(\s*"SHA-?1"\s*\)'
+        - pattern: 'Cipher\.getInstance\s*\(\s*"DES'
+        - pattern: 'Cipher\.getInstance\s*\(\s*"RC4'
+        - pattern: 'Cipher\.getInstance\s*\(\s*"AES/ECB'
+        - pattern: 'Cipher\.getInstance\s*\(\s*"AES"\s*\)'
+    remediation:
+      description: Use strong algorithms (SHA-256+, AES-GCM)
+      code_example:
+        java: |
+          // For hashing
+          MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+          // For encryption
+          Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Cryptographic_Storage_Cheat_Sheet.html
+
+  - id: JAVA-CRYPTO-002
+    name: Hardcoded Cryptographic Key
+    description: Encryption key hardcoded in source code
+    severity: critical
+    confidence: medium
+    cwe: CWE-321
+    owasp: A02
+    tags:
+      - cryptography
+      - hardcoded
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'SecretKeySpec\s*\(\s*"[^"]{16,}"\.getBytes'
+        - pattern: 'SecretKeySpec\s*\(\s*new\s+byte\s*\[\s*\]\s*\{'
+        - pattern: 'private\s+(static\s+)?(final\s+)?String\s+\w*(key|secret|KEY|SECRET)\w*\s*=\s*"[^"]{16,}"'
+    remediation:
+      description: Store keys in secure key management systems
+      code_example:
+        java: |
+          // Bad
+          SecretKeySpec key = new SecretKeySpec("hardcoded-key-123".getBytes(), "AES");
+
+          // Good - load from secure source
+          String keyId = System.getenv("ENCRYPTION_KEY_ID");
+          SecretKey key = keyManagementService.getKey(keyId);
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Key_Management_Cheat_Sheet.html
+
+  # ============================================================================
+  # SSRF
+  # ============================================================================
+
+  - id: JAVA-SSRF-001
+    name: URL from User Input
+    description: User input used to construct URL for server-side request
+    severity: high
+    confidence: medium
+    cwe: CWE-918
+    owasp: A10
+    tags:
+      - ssrf
+      - java
+    languages:
+      - java
+    detection:
+      patterns:
+        - pattern: 'new\s+URL\s*\(\s*request\.getParameter'
+        - pattern: 'new\s+URL\s*\(\s*\w+\s*\)\.openConnection'
+        - pattern: 'URI\.create\s*\(\s*request\.'
+        - pattern: 'restTemplate\.(getFor|postFor|exchange)\w*\s*\(\s*\w+[^,)]*\)'
+        - pattern: 'WebClient\.create\s*\(\s*\w+\s*\)'
+    remediation:
+      description: Validate URLs against allowlist, block internal IPs
+      code_example:
+        java: |
+          // Validate URL
+          URL url = new URL(userInput);
+          if (!ALLOWED_HOSTS.contains(url.getHost())) {
+              throw new SecurityException("Host not allowed");
+          }
+          // Check for internal IPs
+          InetAddress addr = InetAddress.getByName(url.getHost());
+          if (addr.isSiteLocalAddress() || addr.isLoopbackAddress()) {
+              throw new SecurityException("Internal addresses not allowed");
+          }
+    references:
+      - https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+
+  # ============================================================================
+  # CONFIGURATION
+  # ============================================================================
+
+  - id: JAVA-CONFIG-001
+    name: Debug Mode Enabled
+    description: Debug mode enabled in production configuration
+    severity: medium
+    confidence: high
+    cwe: CWE-489
+    owasp: A05
+    tags:
+      - configuration
+      - java
+    languages:
+      - properties
+      - yaml
+    file_patterns:
+      - "application*.properties"
+      - "application*.yml"
+      - "application*.yaml"
+    detection:
+      patterns:
+        - pattern: 'debug\s*=\s*true'
+        - pattern: 'debug:\s*true'
+        - pattern: 'logging\.level\.root\s*=\s*DEBUG'
+        - pattern: 'logging\.level\.root:\s*DEBUG'
+    remediation:
+      description: Disable debug mode in production
+    references:
+      - https://docs.spring.io/spring-boot/docs/current/reference/html/features.html#features.logging
+
+  - id: JAVA-CONFIG-002
+    name: Verbose Error Messages
+    description: Detailed error information exposed to users
+    severity: medium
+    confidence: high
+    cwe: CWE-209
+    owasp: A05
+    tags:
+      - configuration
+      - information-disclosure
+    languages:
+      - properties
+      - yaml
+    file_patterns:
+      - "application*.properties"
+      - "application*.yml"
+    detection:
+      patterns:
+        - pattern: 'server\.error\.include-stacktrace\s*=\s*(always|on_param)'
+        - pattern: 'server\.error\.include-message\s*=\s*always'
+        - pattern: 'server\.error\.include-binding-errors\s*=\s*always'
+    remediation:
+      description: Hide error details in production
+      code_example:
+        properties: |
+          server.error.include-stacktrace=never
+          server.error.include-message=never
+          server.error.include-binding-errors=never
+    references:
+      - https://docs.spring.io/spring-boot/docs/current/reference/html/application-properties.html
