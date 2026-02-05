@@ -409,7 +409,7 @@ class SecurityScanner:
         return remediation_map.get(vuln_type, "Review and fix the identified security issue.")
 
     def _run_dataflow_analysis(self, files: List[Path]) -> List[Finding]:
-        """Run inter-procedural dataflow analysis (Phase 3)"""
+        """Run inter-procedural dataflow analysis (Phase 3/6)"""
         try:
             # Filter to supported languages (Java, Python)
             supported_files = [f for f in files if f.suffix.lower() in ['.java', '.py']]
@@ -417,13 +417,31 @@ class SecurityScanner:
             if not supported_files:
                 return []
 
-            # Run dataflow analysis using cached content
+            # Try deep dataflow analyzer first (Phase 6)
+            try:
+                from .dataflow.deep_analyzer import DeepDataflowAnalyzer
+
+                logger.info("Running deep dataflow analysis (Phase 6)")
+                analyzer = DeepDataflowAnalyzer()
+                analyzer.analyze_files(supported_files, self._content_cache)
+                findings = analyzer.get_findings()
+
+                if findings:
+                    logger.info(f"Deep dataflow analysis: {len(findings)} vulnerabilities detected")
+                    return findings
+
+            except ImportError as ie:
+                logger.debug(f"Deep dataflow not available: {ie}")
+            except Exception as e:
+                logger.warning(f"Deep dataflow analysis failed, falling back to basic: {e}")
+
+            # Fall back to basic dataflow analyzer
+            logger.debug("Running basic dataflow analysis")
             analyzer = DataflowAnalyzer()
             analyzer.analyze_files(supported_files, self._content_cache)
 
-            # Get findings
             findings = analyzer.get_findings()
-            logger.debug(f"Dataflow analysis: {len(analyzer.vulnerabilities)} vulnerabilities detected")
+            logger.debug(f"Basic dataflow analysis: {len(analyzer.vulnerabilities)} vulnerabilities detected")
 
             return findings
 
