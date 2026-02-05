@@ -1,0 +1,66 @@
+metadata:
+  category: "TEST"
+  name: "Test Rules"
+  description: "Rules for testing"
+  version: "1.0.0"
+
+rules:
+  - id: TEST-SQLI-001
+    name: SQL Injection Test
+    description: SQL query with string concatenation
+    severity: critical
+    confidence: high
+    cwe: CWE-89
+    owasp: A03
+    tags: [sql-injection, test]
+    languages: [java, python]
+    detection:
+      patterns:
+        - pattern: "executeQuery\\s*\\(\\s*.*\\+\\s*"
+        - pattern: "execute\\s*\\(\\s*[\"']SELECT.*\\+\\s*"
+    remediation:
+      description: "Use parameterized queries"
+
+  - id: TEST-CMD-001
+    name: Command Injection Test
+    description: OS command with user input
+    severity: high
+    confidence: high
+    cwe: CWE-78
+    owasp: A03
+    tags: [command-injection, test]
+    languages: [java, python]
+    detection:
+      patterns:
+        - pattern: "Runtime\\.getRuntime\\(\\)\\.exec\\s*\\(.*\\+\\s*"
+          language: java
+        - pattern: "os\\.system\\s*\\(.*\\+.*\\)"
+          language: python
+    remediation:
+      description: "Avoid executing OS commands with user input"
+
+  - id: TEST-LOG-001
+    name: Sensitive Data Logging Test
+    description: Potential sensitive data in log output
+    severity: low
+    confidence: low
+    cwe: CWE-532
+    tags: [logging, test]
+    languages: [java, python]
+    detection:
+      patterns:
+        - pattern: "log\\.(info|debug|warn).*password"
+          case_insensitive: true
+    remediation:
+      description: "Do not log sensitive data"
+
+  - id: TEST-DISABLED-001
+    name: Disabled Rule
+    description: This rule should not be loaded
+    severity: medium
+    confidence: medium
+    enabled: false
+    languages: [java]
+    detection:
+      patterns:
+        - pattern: "disabled_pattern"

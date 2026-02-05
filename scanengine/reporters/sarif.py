@@ -311,6 +311,20 @@ class SARIFReporter:
             base_path
         )
 
+    def report(
+        self,
+        result: ScanResult,
+        output: Optional[str] = None
+    ) -> str:
+        """Generate SARIF report and optionally write to file."""
+        content = json.dumps(self.generate(result), indent=2)
+        if output:
+            with open(output, 'w', encoding='utf-8') as f:
+                f.write(content)
+        else:
+            print(content)
+        return content
+
     def to_json(
         self,
         scan_result: ScanResult,

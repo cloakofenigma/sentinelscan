@@ -192,6 +192,16 @@ def generate_excel_report(
 class ExcelReporter:
     """Excel reporter class."""
 
+    def report(
+        self,
+        result: ScanResult,
+        output: Optional[str] = None
+    ) -> str:
+        """Generate Excel report and write to file."""
+        if not output:
+            raise ValueError("Excel format requires an output file path (-o file.xlsx)")
+        return generate_excel_report(result, output)
+
     def write(
         self,
         scan_result: ScanResult,

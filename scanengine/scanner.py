@@ -193,10 +193,33 @@ class SecurityScanner:
 
         return result
 
+    @staticmethod
+    def _load_sentinelscanignore(target: Path) -> List[str]:
+        """Load patterns from .sentinelscanignore file."""
+        ignore_file = target / ".sentinelscanignore"
+        if not ignore_file.is_file():
+            return []
+
+        patterns = []
+        try:
+            for line in ignore_file.read_text().splitlines():
+                line = line.strip()
+                if not line or line.startswith('#'):
+                    continue
+                patterns.append(line)
+        except OSError:
+            pass
+        return patterns
+
     def _collect_files(self, target: Path, exclude_patterns: Optional[List[str]] = None) -> List[Path]:
         """Collect all files to scan"""
         files = []
-        exclude_patterns = exclude_patterns or []
+        exclude_patterns = list(exclude_patterns or [])
+
+        # Load .sentinelscanignore patterns
+        if target.is_dir():
+            ignore_patterns = self._load_sentinelscanignore(target)
+            exclude_patterns.extend(ignore_patterns)
 
         if target.is_file():
             if self._should_scan_file(target, exclude_patterns):

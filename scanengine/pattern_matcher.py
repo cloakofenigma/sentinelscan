@@ -4,7 +4,7 @@ Pattern matcher - performs regex-based pattern matching on source code
 
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Generator
+from typing import List, Optional, Tuple, Generator, Set
 import logging
 
 from .models import Rule, RulePattern, Finding, Location, Severity, Confidence
@@ -78,6 +78,10 @@ class PatternMatcher:
                     if pattern.missing:
                         if self._check_missing_pattern(content, pattern.missing):
                             continue
+
+                    # Check for nosec suppression
+                    if self._is_nosec_suppressed(line_content, rule.id):
+                        continue
 
                     finding = Finding(
                         rule_id=rule.id,
@@ -159,6 +163,37 @@ class PatternMatcher:
                 self._compiled_patterns[cache_key] = None
 
         return self._compiled_patterns[cache_key]
+
+    @staticmethod
+    def parse_nosec(line: str) -> Optional[Set[str]]:
+        """
+        Parse nosec directive from a line.
+
+        Returns:
+            None if no nosec directive found.
+            Empty set if nosec suppresses all rules.
+            Set of rule IDs if nosec targets specific rules.
+        """
+        # Match # nosec, // nosec, /* nosec */
+        m = re.search(r'(?:#|//|/\*)\s*nosec\b\s*([\w,\s-]*)', line, re.IGNORECASE)
+        if not m:
+            return None
+
+        rule_str = m.group(1).strip().rstrip('*').rstrip('/').strip()
+        if not rule_str:
+            return set()  # Suppress all
+
+        # Parse comma-separated rule IDs
+        return {r.strip() for r in rule_str.split(',') if r.strip()}
+
+    def _is_nosec_suppressed(self, line: str, rule_id: str) -> bool:
+        """Check if a line has a nosec directive that suppresses the given rule."""
+        result = self.parse_nosec(line)
+        if result is None:
+            return False
+        if len(result) == 0:
+            return True  # Suppress all
+        return rule_id in result
 
     def _get_language(self, filepath: Path) -> str:
         """Determine the language from file extension"""

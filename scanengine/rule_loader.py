@@ -48,8 +48,12 @@ class RuleLoader:
         """Load rules from a single YAML file"""
         rules = []
 
-        with open(filepath, 'r', encoding='utf-8') as f:
-            data = yaml.safe_load(f)
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+        except (yaml.YAMLError, OSError) as e:
+            logger.error(f"Failed to read/parse YAML file {filepath}: {e}")
+            return rules
 
         if not data:
             return rules

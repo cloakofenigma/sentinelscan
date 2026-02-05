@@ -587,6 +587,20 @@ class HTMLReporter:
         """Generate HTML report."""
         return generate_html_report(scan_result, title, base_path, self.version)
 
+    def report(
+        self,
+        result: ScanResult,
+        output: Optional[str] = None
+    ) -> str:
+        """Generate HTML report and optionally write to file."""
+        content = self.generate(result)
+        if output:
+            with open(output, 'w', encoding='utf-8') as f:
+                f.write(content)
+        else:
+            print(content)
+        return content
+
     def write(
         self,
         scan_result: ScanResult,

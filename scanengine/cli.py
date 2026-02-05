@@ -55,13 +55,15 @@ Examples:
     output_group = parser.add_argument_group('Output Options')
     output_group.add_argument(
         '-o', '--output',
-        help='Output file path (default: stdout)'
+        action='append',
+        dest='outputs',
+        help='Output file path (can be repeated, format auto-detected from extension: .sarif, .html, .xlsx, .csv, .json)'
     )
     output_group.add_argument(
         '-f', '--format',
-        choices=['console', 'csv', 'json', 'sarif'],
+        choices=['console', 'csv', 'json', 'sarif', 'html', 'excel'],
         default='console',
-        help='Output format (default: console)'
+        help='Output format for stdout (default: console)'
     )
     output_group.add_argument(
         '--no-color',
@@ -246,14 +248,32 @@ def run_scan(args: argparse.Namespace) -> int:
         exclude_patterns=args.exclude
     )
 
-    # Generate report
-    reporter_kwargs = {}
-    if args.format == 'console':
-        reporter_kwargs['use_colors'] = not args.no_color
-        reporter_kwargs['verbose'] = args.verbose
+    # Format detection from file extension
+    ext_to_format = {
+        '.sarif': 'sarif',
+        '.html': 'html',
+        '.htm': 'html',
+        '.xlsx': 'excel',
+        '.csv': 'csv',
+        '.json': 'json',
+    }
 
-    reporter = get_reporter(args.format, **reporter_kwargs)
-    reporter.report(result, args.output)
+    # Generate reports for each -o output file
+    if args.outputs:
+        for output_path in args.outputs:
+            ext = Path(output_path).suffix.lower()
+            fmt = ext_to_format.get(ext, args.format)
+            reporter = get_reporter(fmt)
+            reporter.report(result, output_path)
+            print(f"Report written: {output_path} ({fmt})", file=sys.stderr)
+    else:
+        # No -o specified, print to stdout using -f format
+        reporter_kwargs = {}
+        if args.format == 'console':
+            reporter_kwargs['use_colors'] = not args.no_color
+            reporter_kwargs['verbose'] = args.verbose
+        reporter = get_reporter(args.format, **reporter_kwargs)
+        reporter.report(result, None)
 
     # Return exit code based on findings
     if result.errors:

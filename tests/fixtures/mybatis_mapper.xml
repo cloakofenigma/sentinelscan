@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+    "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.mapper.UserMapper">
+
+    <!-- Safe: parameterized query -->
+    <select id="findById" parameterType="long" resultType="User">
+        SELECT * FROM users WHERE id = #{id}
+    </select>
+
+    <!-- Vulnerable: string interpolation -->
+    <select id="findByName" parameterType="string" resultType="User">
+        SELECT * FROM users WHERE name = '${name}'
+    </select>
+
+    <!-- Vulnerable: interpolation in ORDER BY -->
+    <select id="findAllSorted" parameterType="string" resultType="User">
+        SELECT * FROM users ORDER BY ${sortColumn}
+    </select>
+
+    <!-- Vulnerable: foreach with interpolation -->
+    <select id="findByIds" parameterType="list" resultType="User">
+        SELECT * FROM users WHERE id IN
+        <foreach item="id" collection="list" open="(" separator="," close=")">
+            ${id}
+        </foreach>
+    </select>
+
+    <!-- Safe: parameterized insert -->
+    <insert id="insertUser" parameterType="User">
+        INSERT INTO users (name, email) VALUES (#{name}, #{email})
+    </insert>
+
+</mapper>
