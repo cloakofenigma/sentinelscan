@@ -18,6 +18,17 @@ from .dataflow_analyzer import DataflowAnalyzer, analyze_dataflow
 from .spring_analyzer import SpringAnalyzer, analyze_spring_application
 from .mybatis_analyzer import MybatisAnalyzer, analyze_mybatis_mappers
 
+# Phase 7: Universal language and framework analyzers
+try:
+    from .analyzers import AnalyzerRegistry
+    from .analyzers import languages  # Triggers registration
+    from .analyzers import frameworks  # Triggers registration
+    from .analyzers import iac  # Triggers registration
+    PHASE7_AVAILABLE = True
+except ImportError as e:
+    PHASE7_AVAILABLE = False
+    AnalyzerRegistry = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -26,10 +37,31 @@ class SecurityScanner:
 
     # Default file extensions to scan
     DEFAULT_EXTENSIONS = {
-        '.java', '.xml', '.properties', '.yml', '.yaml', '.json',
-        '.py', '.js', '.ts', '.jsx', '.tsx', '.php', '.go', '.rb',
-        '.cs', '.kt', '.scala', '.gradle', '.html', '.htm',
+        # Java ecosystem
+        '.java', '.kt', '.kts', '.scala', '.gradle',
+        # Web languages
+        '.js', '.ts', '.jsx', '.tsx', '.vue', '.php',
+        # Python
+        '.py',
+        # Ruby
+        '.rb', '.rake', '.gemspec', '.erb',
+        # Go
+        '.go',
+        # Rust
+        '.rs',
+        # Swift
+        '.swift',
+        # C#
+        '.cs', '.cshtml',
+        # Configuration
+        '.xml', '.properties', '.yml', '.yaml', '.json',
         '.env', '.config', '.conf',
+        # Infrastructure as Code
+        '.tf', '.tfvars',
+        # GraphQL/gRPC
+        '.graphql', '.gql', '.proto',
+        # HTML/Templates
+        '.html', '.htm',
     }
 
     # Directories to skip
@@ -73,6 +105,10 @@ class SecurityScanner:
         # Phase 3: Dataflow analysis and Spring-specific analysis
         self.enable_dataflow_analysis = enable_dataflow_analysis and TREE_SITTER_AVAILABLE
         self.enable_spring_analysis = enable_dataflow_analysis  # Enable when dataflow is enabled
+
+        # Phase 7: Universal analyzers
+        self.enable_phase7_analysis = PHASE7_AVAILABLE
+        self._detected_frameworks = []
 
         self.context_analyzer = ContextAnalyzer() if enable_context_analysis else None
         self.entropy_analyzer = EntropyAnalyzer() if enable_context_analysis else None
@@ -144,6 +180,8 @@ class SecurityScanner:
             logger.info("AST-based analysis enabled (Phase 2)")
         if self.enable_dataflow_analysis:
             logger.info("Dataflow analysis enabled (Phase 3)")
+        if self.enable_phase7_analysis:
+            logger.info("Universal language/framework analysis enabled (Phase 7)")
 
         # Scan files (with parallel processing)
         if self.max_workers > 1 and len(files_to_scan) > 10:
@@ -171,6 +209,13 @@ class SecurityScanner:
         if mybatis_findings:
             logger.info(f"MyBatis analysis found {len(mybatis_findings)} SQL injection issues")
 
+        # Phase 7: Run universal language, framework, and IaC analyzers
+        if self.enable_phase7_analysis:
+            phase7_findings = self._run_phase7_analysis(files_to_scan)
+            findings.extend(phase7_findings)
+            if phase7_findings:
+                logger.info(f"Phase 7 analysis found {len(phase7_findings)} issues")
+
         # Phase 2: Apply context-aware false positive filtering
         initial_count = len(findings)
         if self.enable_context_analysis and self.context_analyzer:
@@ -195,21 +240,23 @@ class SecurityScanner:
 
     @staticmethod
     def _load_sentinelscanignore(target: Path) -> List[str]:
-        """Load patterns from .sentinelscanignore file."""
-        ignore_file = target / ".sentinelscanignore"
-        if not ignore_file.is_file():
-            return []
-
-        patterns = []
-        try:
-            for line in ignore_file.read_text().splitlines():
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                patterns.append(line)
-        except OSError:
-            pass
-        return patterns
+        """Load patterns from .sentinelignore or .sentinelscanignore file."""
+        # Check for both file names (prefer shorter .sentinelignore)
+        for ignore_name in ['.sentinelignore', '.sentinelscanignore']:
+            ignore_file = target / ignore_name
+            if ignore_file.is_file():
+                patterns = []
+                try:
+                    for line in ignore_file.read_text().splitlines():
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        patterns.append(line)
+                    logger.debug(f"Loaded {len(patterns)} ignore patterns from {ignore_name}")
+                    return patterns
+                except OSError:
+                    pass
+        return []
 
     def _collect_files(self, target: Path, exclude_patterns: Optional[List[str]] = None) -> List[Path]:
         """Collect all files to scan"""
@@ -263,8 +310,18 @@ class SecurityScanner:
         # Check exclude patterns
         filepath_str = str(filepath)
         for pattern in exclude_patterns:
-            import fnmatch
-            if fnmatch.fnmatch(filepath_str, pattern):
+            # Handle directory patterns (e.g., "rules/", "tests/")
+            if pattern.endswith('/'):
+                dir_pattern = pattern.rstrip('/')
+                if f'/{dir_pattern}/' in filepath_str or filepath_str.startswith(dir_pattern + '/'):
+                    return False
+            # Handle glob patterns
+            elif '*' in pattern or '?' in pattern:
+                import fnmatch
+                if fnmatch.fnmatch(filepath_str, f'*{pattern}*'):
+                    return False
+            # Handle simple substring match
+            elif pattern in filepath_str:
                 return False
 
         return True
@@ -515,6 +572,100 @@ class SecurityScanner:
         except Exception as e:
             logger.error(f"MyBatis analysis failed: {e}")
             return []
+
+    def _run_phase7_analysis(self, files: List[Path]) -> List[Finding]:
+        """Run Phase 7 universal language, framework, and IaC analyzers"""
+        if not PHASE7_AVAILABLE or not AnalyzerRegistry:
+            return []
+
+        findings = []
+
+        try:
+            # 1. Detect frameworks in the project
+            self._detected_frameworks = AnalyzerRegistry.detect_frameworks(files, self._content_cache)
+            if self._detected_frameworks:
+                framework_names = [f.framework_name for f in self._detected_frameworks]
+                logger.info(f"Detected frameworks: {', '.join(framework_names)}")
+
+            # 2. Run framework-specific analyzers
+            for framework_analyzer in self._detected_frameworks:
+                try:
+                    framework_findings = framework_analyzer.analyze_files(files, self._content_cache)
+                    findings.extend(framework_findings)
+                    if framework_findings:
+                        logger.debug(f"{framework_analyzer.framework_name}: {len(framework_findings)} findings")
+                except Exception as e:
+                    logger.warning(f"Framework analyzer {framework_analyzer.framework_name} failed: {e}")
+
+            # 3. Run language-specific analyzers for supported extensions
+            for file_path in files:
+                try:
+                    analyzer = AnalyzerRegistry.get_analyzer_for_file(file_path)
+                    if analyzer and hasattr(analyzer, 'analyze_file'):
+                        content = self._content_cache.get(str(file_path), "")
+                        if content:
+                            file_findings = analyzer.analyze_file(file_path, content)
+                            findings.extend(file_findings)
+                except Exception as e:
+                    logger.debug(f"Language analyzer failed for {file_path}: {e}")
+
+            # 4. Run IaC analyzers (Terraform, Kubernetes, Dockerfile)
+            iac_findings = self._run_iac_analysis(files)
+            findings.extend(iac_findings)
+
+            return findings
+
+        except Exception as e:
+            logger.error(f"Phase 7 analysis failed: {e}")
+            return findings
+
+    def _run_iac_analysis(self, files: List[Path]) -> List[Finding]:
+        """Run Infrastructure-as-Code analyzers"""
+        if not PHASE7_AVAILABLE or not AnalyzerRegistry:
+            return []
+
+        findings = []
+
+        try:
+            # Terraform files
+            tf_files = [f for f in files if f.suffix.lower() in {'.tf', '.tfvars'}]
+            if tf_files:
+                tf_analyzer = AnalyzerRegistry.get_analyzer_for_file(Path("test.tf"))
+                if tf_analyzer:
+                    for f in tf_files:
+                        content = self._content_cache.get(str(f), "")
+                        if content:
+                            findings.extend(tf_analyzer.analyze_file(f, content))
+
+            # Dockerfile
+            dockerfiles = [f for f in files if f.name.lower() == 'dockerfile' or f.name.lower().startswith('dockerfile.')]
+            if dockerfiles:
+                docker_analyzer = AnalyzerRegistry._iac_analyzers.get('dockerfile')
+                if docker_analyzer:
+                    analyzer = docker_analyzer()
+                    for f in dockerfiles:
+                        content = self._content_cache.get(str(f), "")
+                        if content:
+                            findings.extend(analyzer.analyze_file(f, content))
+
+            # Kubernetes YAML files
+            yaml_files = [f for f in files if f.suffix.lower() in {'.yaml', '.yml'}]
+            k8s_analyzer_cls = AnalyzerRegistry._iac_analyzers.get('k8s')
+            if k8s_analyzer_cls and yaml_files:
+                k8s_analyzer = k8s_analyzer_cls()
+                findings.extend(k8s_analyzer.analyze_files(yaml_files, self._content_cache))
+
+            # CloudFormation templates
+            cfn_analyzer_cls = AnalyzerRegistry._iac_analyzers.get('cfn')
+            if cfn_analyzer_cls and yaml_files:
+                cfn_analyzer = cfn_analyzer_cls()
+                findings.extend(cfn_analyzer.analyze_files(yaml_files, self._content_cache))
+
+            return findings
+
+        except Exception as e:
+            logger.error(f"IaC analysis failed: {e}")
+            return findings
 
     def _apply_context_filtering(self, findings: List[Finding]) -> List[Finding]:
         """Apply context-aware false positive filtering"""

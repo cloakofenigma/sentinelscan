@@ -54,7 +54,7 @@ def get_default_branch() -> str:
         )
         if result.returncode == 0:
             return result.stdout.strip().split('/')[-1]
-    except:
+    except Exception:
         pass
 
     # Fallback: check if main or master exists

@@ -31,7 +31,7 @@ Built for security engineers, AppSec teams, and developers integrating security 
 
 ```
                           ┌──────────────────────────────────────────────────┐
-                          │              SENTINELSCAN v0.5.0           │
+                          │              SENTINELSCAN v1.0.0                 │
                           ├──────────────────────────────────────────────────┤
                           │                                                  │
   Input Sources           │   Analysis Pipeline                              │   Output
@@ -43,8 +43,8 @@ Built for security engineers, AppSec teams, and developers integrating security 
   Python API ───┤         │   └──────┬───────┘  └────────┬─────────┘         │   │ CSV       │
   GitHub Actions┘         │          │                   │                   │   │ SARIF     │
                           │   ┌──────▼───────┐  ┌────────▼─────────┐         │   │ HTML      │
-                          │   │ AST Analyzer  │  │ Dataflow Tracker │         │   └───────────┘
-                          │   │ (tree-sitter) │  │ (taint analysis) │         │
+                          │   │ AST Analyzer  │  │ Dataflow Tracker │         │   │ Excel     │
+                          │   │ (tree-sitter) │  │ (taint analysis) │         │   └───────────┘
                           │   └──────┬───────┘  └────────┬─────────┘         │
                           │          │                   │                   │
                           │   ┌──────▼───────┐  ┌────────▼─────────┐         │
@@ -53,6 +53,11 @@ Built for security engineers, AppSec teams, and developers integrating security 
                           │   └──────┬───────┘  └────────┬─────────┘         │
                           │          │                   │                   │
                           │   ┌──────▼───────────────────▼─────────┐         │
+                          │   │  Universal Language & Framework    │         │
+                          │   │  (7 langs, 14 frameworks, 4 IaC)   │         │
+                          │   └──────────────────┬─────────────────┘         │
+                          │                      │                           │
+                          │   ┌──────────────────▼─────────────────┐         │
                           │   │      LLM Analyzer (optional)       │         │
                           │   │      Claude API integration        │         │
                           │   └────────────────────────────────────┘         │
@@ -102,14 +107,49 @@ Full rule coverage across all OWASP 2021 categories:
 | Language | Pattern Rules | AST Analysis | Dataflow | Framework-Specific |
 |----------|:---:|:---:|:---:|:---:|
 | Java | Yes | Yes | Yes | Spring, MyBatis |
-| Python | Yes | Yes | Yes | Django |
-| JavaScript/TypeScript | Yes | Yes | No | Express |
-| PHP | Yes | No | No | Laravel |
-| Go | Yes | No | No | - |
-| C# | Yes | No | No | - |
-| Ruby | Yes | No | No | - |
+| Python | Yes | Yes | Yes | Django, Flask |
+| JavaScript/TypeScript | Yes | Yes | Yes | React, Vue, Angular, Express |
+| Go | Yes | Yes | No | Gin |
+| C# | Yes | Yes | No | ASP.NET |
+| Kotlin | Yes | Yes | No | Android |
+| PHP | Yes | Yes | No | Laravel |
+| Ruby | Yes | Yes | No | Rails |
+| Rust | Yes | Yes | No | - |
+| Swift | Yes | Yes | No | iOS |
 | XML (config files) | Yes | - | - | MyBatis mappers |
-| YAML/Properties | Yes | - | - | Spring config |
+| YAML/Properties | Yes | - | - | Spring config, Kubernetes |
+| HCL | Yes | - | - | Terraform |
+| Dockerfile | Yes | - | - | Docker |
+
+### Framework Support
+
+| Framework | Language | Detection | Security Checks |
+|-----------|----------|-----------|-----------------|
+| **React/Next.js** | JS/TS | `package.json`, imports | XSS (`dangerouslySetInnerHTML`), `eval()`, unsafe href, localStorage secrets |
+| **Vue/Nuxt** | JS/TS | `.vue` files, imports | `v-html` XSS, template injection |
+| **Angular** | TS | `angular.json` | `bypassSecurityTrust*`, sanitizer bypass |
+| **Django** | Python | imports, settings | SQL injection (`.raw()`), DEBUG mode, CSRF, `|safe` XSS |
+| **Flask** | Python | imports | SSTI, debug mode, secret key, open redirect |
+| **Rails** | Ruby | `Gemfile` | SQL injection, `permit!`, mass assignment, CSRF |
+| **Express** | JS | imports | Missing helmet, CORS, body-parser, rate limiting |
+| **ASP.NET** | C# | `.csproj` | `FromSql` injection, CORS, auth bypass |
+| **Gin** | Go | imports | SQL injection, path traversal, CORS |
+| **Laravel** | PHP | `composer.json` | `DB::raw`, mass assignment, unguard |
+| **Spring** | Java | annotations | Security config, actuator, `@Query` injection |
+| **MyBatis** | Java/XML | mapper files | `${}` interpolation, dynamic SQL |
+| **GraphQL** | Multi | schema files | Introspection, depth attacks, resolver injection |
+| **gRPC** | Multi | `.proto` files | Missing TLS, reflection, auth interceptors |
+| **Android** | Kotlin/Java | `AndroidManifest.xml` | Exported components, WebView JS bridge, intent spoofing |
+| **iOS** | Swift | `Info.plist` | ATS bypass, keychain misuse, URL schemes |
+
+### Infrastructure as Code (IaC) Support
+
+| Platform | File Types | Security Checks |
+|----------|------------|-----------------|
+| **Terraform** | `.tf`, `.tfvars` | Public S3, open security groups, permissive IAM, unencrypted storage |
+| **Kubernetes** | YAML manifests | Privileged containers, root user, host network/PID, capabilities |
+| **CloudFormation** | YAML/JSON templates | Same AWS checks as Terraform |
+| **Dockerfile** | `Dockerfile` | Root user, `:latest` tag, hardcoded secrets, `curl\|bash` |
 
 ---
 
@@ -311,7 +351,36 @@ Reduces noise by understanding code context:
 - Framework detection adjusts rule applicability
 - Confidence scoring based on surrounding code context
 
-### 7. LLM Analyzer (Claude API)
+### 7. Universal Language Analyzers
+
+AST-based security analysis for 7 additional languages:
+- **Go** - SQL injection, command injection, SSRF, path traversal
+- **C#** - SqlCommand injection, Process.Start, BinaryFormatter deserialization
+- **Kotlin** - rawQuery, Runtime.exec, WebView vulnerabilities
+- **PHP** - mysqli_query, shell_exec, unserialize
+- **Ruby** - find_by_sql, system calls, YAML.load
+- **Rust** - unsafe blocks, command injection
+- **Swift** - sqlite3_exec, NSKeyedUnarchiver, URLSession
+
+### 8. Framework Analyzers
+
+Specialized security analysis for 14 web and mobile frameworks:
+- **Frontend**: React, Vue, Angular (XSS, template injection, unsafe APIs)
+- **Backend**: Django, Flask, Rails, Express, ASP.NET, Gin, Laravel
+- **API**: GraphQL, gRPC (introspection, depth attacks, missing TLS)
+- **Mobile**: Android, iOS (exported components, keychain, WebView)
+
+Auto-detection based on project files (`package.json`, `Gemfile`, `composer.json`, etc.)
+
+### 9. IaC Analyzers
+
+Infrastructure as Code security scanning:
+- **Terraform** - Public S3 buckets, open security groups, permissive IAM
+- **Kubernetes** - Privileged containers, root user, hostNetwork, capabilities
+- **CloudFormation** - AWS resource misconfigurations
+- **Dockerfile** - Root user, latest tag, hardcoded secrets, curl|bash
+
+### 10. LLM Analyzer (Claude API)
 
 AI-powered analysis layer (requires Anthropic API key):
 - **Explanation** - Plain-language vulnerability breakdown, attack vectors, impact assessment
@@ -827,13 +896,33 @@ success, message = uninstall_hooks(repo_path="/path/to/repo")
 target, build, dist, out, vendor, venv, .venv, .gradle, .mvn, bin, obj
 ```
 
+### Ignore File (`.sentinelignore`)
+
+Create a `.sentinelignore` file in your project root to exclude paths from scanning:
+
+```
+# Exclude test fixtures
+tests/fixtures/
+
+# Exclude generated code
+src/generated/
+
+# Exclude specific files
+*.min.js
+```
+
+Patterns support:
+- Directory patterns: `tests/` (trailing slash)
+- Glob patterns: `*.min.js`, `**/*.generated.ts`
+- Substring matches: `node_modules`
+
 ---
 
 ## Project Structure
 
 ```
 scanengine/
-├── __init__.py              # Package exports (v0.5.0)
+├── __init__.py              # Package exports (v1.0.0)
 ├── __main__.py              # python -m entry point
 ├── cli.py                   # Command-line interface
 ├── scanner.py               # Scan orchestrator
@@ -848,6 +937,46 @@ scanengine/
 ├── mybatis_analyzer.py      # MyBatis XML mapper SQL injection
 ├── reporters.py             # Console, CSV, JSON reporters
 ├── llm_analyze.py           # LLM analysis CLI entry point
+├── analyzers/               # Universal language & framework analyzers
+│   ├── __init__.py          # Package exports
+│   ├── base.py              # Abstract base classes
+│   ├── registry.py          # Analyzer registry & auto-detection
+│   ├── languages/           # Language-specific analyzers
+│   │   ├── go.py            # Go security analyzer
+│   │   ├── csharp.py        # C# security analyzer
+│   │   ├── kotlin.py        # Kotlin security analyzer
+│   │   ├── php.py           # PHP security analyzer
+│   │   ├── ruby.py          # Ruby security analyzer
+│   │   ├── rust.py          # Rust security analyzer
+│   │   └── swift.py         # Swift security analyzer
+│   ├── frameworks/          # Framework-specific analyzers
+│   │   ├── react.py         # React/Next.js analyzer
+│   │   ├── vue.py           # Vue/Nuxt analyzer
+│   │   ├── angular.py       # Angular analyzer
+│   │   ├── django.py        # Django analyzer
+│   │   ├── flask.py         # Flask analyzer
+│   │   ├── rails.py         # Ruby on Rails analyzer
+│   │   ├── express.py       # Express.js analyzer
+│   │   ├── aspnet.py        # ASP.NET Core analyzer
+│   │   ├── gin.py           # Go Gin analyzer
+│   │   ├── laravel.py       # PHP Laravel analyzer
+│   │   ├── graphql.py       # GraphQL analyzer
+│   │   ├── grpc.py          # gRPC analyzer
+│   │   ├── android.py       # Android analyzer
+│   │   └── ios.py           # iOS analyzer
+│   └── iac/                 # Infrastructure as Code analyzers
+│       ├── terraform.py     # Terraform/HCL analyzer
+│       ├── kubernetes.py    # Kubernetes manifest analyzer
+│       ├── cloudformation.py # AWS CloudFormation analyzer
+│       └── dockerfile.py    # Dockerfile analyzer
+├── dataflow/                # Deep dataflow analysis engine
+│   ├── ssa.py               # SSA transformation
+│   ├── taint_lattice.py     # Formal taint lattice
+│   ├── transfer_functions.py # Statement transfer functions
+│   ├── sanitizers.py        # Sanitizer registry
+│   ├── type_resolver.py     # Type hierarchy resolution
+│   ├── engine.py            # Inter-procedural engine
+│   └── deep_analyzer.py     # Integration wrapper
 ├── hooks/                   # Git hooks integration
 │   ├── __init__.py
 │   ├── installer.py         # Install/uninstall git hooks
@@ -862,7 +991,8 @@ scanengine/
 └── reporters/               # Extended reporters
     ├── __init__.py
     ├── sarif.py              # SARIF 2.1.0 output
-    └── html.py               # HTML executive report
+    ├── html.py               # HTML executive report
+    └── excel.py              # Excel report
 
 rules/
 ├── owasp/                   # 10 OWASP category rule files
@@ -898,10 +1028,9 @@ Parallel scanning with 4 threads. Performance scales linearly with file count.
 
 - **Not a replacement for DAST** - This is static analysis only. It does not execute code or interact with running applications.
 - **No dependency/SCA scanning** - Does not analyze `pom.xml`, `package.json`, etc. for known vulnerable dependencies. Use tools like Dependabot, Snyk, or OWASP Dependency-Check alongside this tool.
-- **No Docker/infrastructure analysis** - Does not analyze Dockerfiles, Kubernetes manifests, or Terraform configs for security issues.
 - **Business logic flaws** - Static analysis cannot reliably detect authorization bypass, workflow abuse, or other business logic vulnerabilities (the LLM module can provide hints but not guarantees).
 - **Absence-of-control patterns** - Cannot detect missing security controls (e.g., "there should be rate limiting here") without explicit rules.
-- **AST support** - Tree-sitter analysis is currently limited to Java, Python, and JavaScript. Other languages use pattern matching only.
+- **Tree-sitter optional** - Full AST analysis requires tree-sitter language bindings. Analyzers fall back to regex patterns when tree-sitter is unavailable.
 - **LLM costs** - The LLM module calls the Claude API. Use `--max-findings` to control costs. Caching reduces repeat analysis costs.
 
 ---
@@ -912,4 +1041,4 @@ Internal use. See LICENSE file for details.
 
 ---
 
-*Version 0.5.0 | Built for security engineers, by security engineers.*
+*Version 1.0.0 | Built for security engineers, by security engineers.*

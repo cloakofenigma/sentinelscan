@@ -1,0 +1,8 @@
+# SentinelScan ignore file
+# Patterns here are excluded from scanning
+
+# Rule definitions contain detection patterns, not actual vulnerabilities
+rules/
+
+# Test files contain intentionally vulnerable code samples
+tests/
