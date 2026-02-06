@@ -12,6 +12,7 @@ from pathlib import Path
 from ..base import LanguageAnalyzer, AnalyzerCapabilities, ClassInfo, FunctionInfo, MethodCall
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,16 @@ class RustAnalyzer(LanguageAnalyzer):
 
     @property
     def capabilities(self) -> AnalyzerCapabilities:
-        return AnalyzerCapabilities(supports_ast=self._tree_sitter_available, supports_taint_tracking=True)
+        return AnalyzerCapabilities(
+            supports_ast=self._tree_sitter_available,
+            supports_dataflow=True,
+            supports_taint_tracking=True,
+        )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for Rust language."""
+        return get_language_config('rust')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:
@@ -210,29 +220,46 @@ class RustAnalyzer(LanguageAnalyzer):
 
     def _check_command_injection(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
-        patterns = [
+        # Shell execution patterns (high risk)
+        shell_patterns = [
+            r'Command::new\s*\(\s*"(?:sh|bash|cmd)"\s*\)',
+            r'Command::new\s*\([^)]*\)\s*\.arg\s*\(\s*"-c"\s*\)',
+        ]
+        for pattern in shell_patterns:
+            for match in re.finditer(pattern, content):
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='RUST-CMDI-001',
+                    title='Potential Command Injection',
+                    description='Shell execution detected - verify input is sanitized',
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEDIUM,
+                    cwe='CWE-78',
+                    owasp='A03',
+                ))
+
+        # Format string in command (high risk)
+        format_patterns = [
             r'Command::new\s*\(\s*&?format!',
-            r'Command::new\s*\([^)]*\)',
             r'\.arg\s*\(\s*&?format!',
         ]
-        for pattern in patterns:
+        for pattern in format_patterns:
             for match in re.finditer(pattern, content):
-                # Check if it involves user input
-                context_start = max(0, match.start() - 200)
-                context = content[context_start:match.end()]
-                if any(src in context for src in ['args', 'env::var', 'stdin', 'request']):
-                    line_num = content[:match.start()].count('\n') + 1
-                    findings.append(self._create_finding(
-                        rule_id='RUST-CMDI-001',
-                        title='Potential Command Injection',
-                        description='Command execution may use user input',
-                        file_path=file_path,
-                        line_number=line_num,
-                        severity=Severity.HIGH,
-                        confidence=Confidence.MEDIUM,
-                        cwe='CWE-78',
-                        owasp='A03',
-                    ))
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='RUST-CMDI-001',
+                    title='Potential Command Injection',
+                    description='Command with format string may allow injection',
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEDIUM,
+                    cwe='CWE-78',
+                    owasp='A03',
+                ))
+
         return findings
 
     def _check_unwrap_usage(self, file_path: Path, content: str) -> List[Finding]:

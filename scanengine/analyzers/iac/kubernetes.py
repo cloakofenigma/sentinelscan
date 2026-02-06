@@ -77,6 +77,13 @@ class KubernetesAnalyzer(IaCAnalyzer):
             'description': 'Container has all Linux capabilities',
             'cwe': 'CWE-250',
         },
+        'capabilities_dangerous': {
+            'pattern': r'capabilities:\s*\n\s*add:\s*\n\s*-\s*(?:SYS_ADMIN|NET_ADMIN|SYS_PTRACE|DAC_OVERRIDE)',
+            'severity': Severity.HIGH,
+            'title': 'Dangerous Capability Added',
+            'description': 'Container has dangerous Linux capability (SYS_ADMIN, NET_ADMIN, etc.)',
+            'cwe': 'CWE-250',
+        },
         'no_readonly_root': {
             'pattern': r'readOnlyRootFilesystem:\s*false',
             'severity': Severity.LOW,

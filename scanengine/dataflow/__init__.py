@@ -49,6 +49,26 @@ from .deep_analyzer import (
     DeepDataflowAnalyzer,
 )
 
+from .multilang import (
+    LanguageDataflowConfig,
+    get_language_config,
+    get_all_taint_sources,
+    get_all_sinks,
+    get_all_sanitizers,
+    is_taint_source,
+    is_sink,
+    is_sanitizer,
+    get_source_annotation,
+    LANGUAGE_CONFIGS,
+    GO_CONFIG,
+    CSHARP_CONFIG,
+    KOTLIN_CONFIG,
+    PHP_CONFIG,
+    RUBY_CONFIG,
+    RUST_CONFIG,
+    SWIFT_CONFIG,
+)
+
 __all__ = [
     # Taint Lattice
     'TaintLevel',
@@ -77,4 +97,22 @@ __all__ = [
     'InterproceduralEngine',
     # Main Analyzer
     'DeepDataflowAnalyzer',
+    # Multi-Language Support
+    'LanguageDataflowConfig',
+    'get_language_config',
+    'get_all_taint_sources',
+    'get_all_sinks',
+    'get_all_sanitizers',
+    'is_taint_source',
+    'is_sink',
+    'is_sanitizer',
+    'get_source_annotation',
+    'LANGUAGE_CONFIGS',
+    'GO_CONFIG',
+    'CSHARP_CONFIG',
+    'KOTLIN_CONFIG',
+    'PHP_CONFIG',
+    'RUBY_CONFIG',
+    'RUST_CONFIG',
+    'SWIFT_CONFIG',
 ]

@@ -306,6 +306,17 @@ class LanguageAnalyzer(BaseAnalyzer, ABC):
         """Extract string literals with line numbers."""
         pass
 
+    @property
+    def dataflow_config(self) -> Optional[Any]:
+        """
+        Get the dataflow configuration for this language.
+
+        Returns:
+            LanguageDataflowConfig if dataflow is supported, None otherwise.
+            Override this in subclasses to provide language-specific dataflow config.
+        """
+        return None
+
     def _initialize_parser(self):
         """Initialize the tree-sitter parser if available."""
         if self.tree_sitter_module is None:

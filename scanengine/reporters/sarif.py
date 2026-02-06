@@ -8,7 +8,7 @@ SARIF Spec: https://sarifweb.azurewebsites.net/
 """
 
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
@@ -209,7 +209,7 @@ def generate_sarif(
                 "invocations": [
                     {
                         "executionSuccessful": True,
-                        "endTimeUtc": datetime.utcnow().isoformat() + "Z"
+                        "endTimeUtc": datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
                     }
                 ],
                 "originalUriBaseIds": {

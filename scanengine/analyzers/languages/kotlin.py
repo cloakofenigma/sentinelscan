@@ -18,6 +18,7 @@ from ..base import (
 )
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence, Location
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,16 @@ class KotlinAnalyzer(LanguageAnalyzer):
 
     @property
     def capabilities(self) -> AnalyzerCapabilities:
-        return AnalyzerCapabilities(supports_ast=self._tree_sitter_available, supports_taint_tracking=True)
+        return AnalyzerCapabilities(
+            supports_ast=self._tree_sitter_available,
+            supports_dataflow=True,
+            supports_taint_tracking=True,
+        )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for Kotlin language."""
+        return get_language_config('kotlin')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:
@@ -94,6 +104,7 @@ class KotlinAnalyzer(LanguageAnalyzer):
     def analyze_file(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
         findings.extend(self._check_sql_injection(file_path, content))
+        findings.extend(self._check_command_injection(file_path, content))
         findings.extend(self._check_intent_vulnerabilities(file_path, content))
         findings.extend(self._check_webview_security(file_path, content))
         findings.extend(self._check_insecure_storage(file_path, content))
@@ -173,6 +184,32 @@ class KotlinAnalyzer(LanguageAnalyzer):
                 ))
         return findings
 
+    def _check_command_injection(self, file_path: Path, content: str) -> List[Finding]:
+        findings = []
+        patterns = [
+            # Runtime.exec
+            r'Runtime\.getRuntime\s*\(\s*\)\.exec\s*\(',
+            # ProcessBuilder
+            r'ProcessBuilder\s*\([^)]*\)\.start\s*\(\s*\)',
+            r'ProcessBuilder\s*\([^)]*\)',
+        ]
+        for pattern in patterns:
+            for match in re.finditer(pattern, content):
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='KT-CMDI-001',
+                    title='Potential Command Injection',
+                    description='Command execution detected - verify input is sanitized',
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEDIUM,
+                    cwe='CWE-78',
+                    owasp='A03',
+                    remediation='Avoid shell execution; use argument arrays and sanitize input',
+                ))
+        return findings
+
     def _check_intent_vulnerabilities(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
         # Check for implicit intents with sensitive data
@@ -199,9 +236,14 @@ class KotlinAnalyzer(LanguageAnalyzer):
 
     def _check_webview_security(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
-        # Check for JavaScript enabled
-        if 'setJavaScriptEnabled(true)' in content:
-            for match in re.finditer(r'setJavaScriptEnabled\s*\(\s*true\s*\)', content):
+        # Check for JavaScript enabled (both method call and property assignment)
+        js_patterns = [
+            r'setJavaScriptEnabled\s*\(\s*true\s*\)',
+            r'javaScriptEnabled\s*=\s*true',
+            r'\.settings\.javaScriptEnabled\s*=\s*true',
+        ]
+        for pattern in js_patterns:
+            for match in re.finditer(pattern, content):
                 line_num = content[:match.start()].count('\n') + 1
                 findings.append(self._create_finding(
                     rule_id='KT-WEBVIEW-001',

@@ -12,6 +12,7 @@ from pathlib import Path
 from ..base import LanguageAnalyzer, AnalyzerCapabilities, ClassInfo, FunctionInfo, MethodCall
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +82,16 @@ class PHPAnalyzer(LanguageAnalyzer):
 
     @property
     def capabilities(self) -> AnalyzerCapabilities:
-        return AnalyzerCapabilities(supports_ast=self._tree_sitter_available, supports_taint_tracking=True)
+        return AnalyzerCapabilities(
+            supports_ast=self._tree_sitter_available,
+            supports_dataflow=True,
+            supports_taint_tracking=True,
+        )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for PHP language."""
+        return get_language_config('php')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:
@@ -151,6 +161,9 @@ class PHPAnalyzer(LanguageAnalyzer):
             r'(?:mysql_query|mysqli_query|pg_query)\s*\([^)]*\$_(?:GET|POST|REQUEST)',
             r'->(?:query|exec)\s*\([^)]*\$_(?:GET|POST|REQUEST)',
             r'(?:whereRaw|selectRaw|orderByRaw|DB::raw)\s*\([^)]*\$',
+            # Concatenation with variables
+            r'(?:mysql_query|mysqli_query|pg_query)\s*\([^)]*\.\s*\$\w+',
+            r'(?:mysql_query|mysqli_query|pg_query)\s*\([^)]*"\s*\.\s*\$',
         ]
         for pattern in patterns:
             for match in re.finditer(pattern, content):
@@ -170,6 +183,7 @@ class PHPAnalyzer(LanguageAnalyzer):
 
     def _check_command_injection(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
+        # Direct superglobal usage
         patterns = [
             r'(?:exec|shell_exec|system|passthru|popen)\s*\([^)]*\$_(?:GET|POST|REQUEST)',
             r'`[^`]*\$_(?:GET|POST|REQUEST)',
@@ -188,6 +202,27 @@ class PHPAnalyzer(LanguageAnalyzer):
                     cwe='CWE-78',
                     owasp='A03',
                 ))
+
+        # Variable passed to command execution - check if tainted
+        var_pattern = r'(?:exec|shell_exec|system|passthru|popen)\s*\(\s*\$(\w+)\s*\)'
+        for match in re.finditer(var_pattern, content):
+            var_name = match.group(1)
+            # Check if this variable is assigned from superglobal
+            taint_pattern = rf'\${var_name}\s*=\s*\$_(?:GET|POST|REQUEST|COOKIE|SERVER)'
+            if re.search(taint_pattern, content):
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='PHP-CMDI-001',
+                    title='Command Injection',
+                    description='Command execution with tainted variable',
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.CRITICAL,
+                    confidence=Confidence.HIGH,
+                    cwe='CWE-78',
+                    owasp='A03',
+                ))
+
         return findings
 
     def _check_xss(self, file_path: Path, content: str) -> List[Finding]:

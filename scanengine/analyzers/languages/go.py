@@ -26,6 +26,7 @@ from ..base import (
 )
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence, Location
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -116,13 +117,19 @@ class GoAnalyzer(LanguageAnalyzer):
     # Dangerous patterns (regex-based fallback)
     DANGEROUS_PATTERNS = {
         'sql_injection': [
-            r'(?:Query|Exec|Prepare)\s*\(\s*(?:fmt\.Sprintf|.*\+)',
+            r'(?:Query|QueryRow|Exec|Prepare)\s*\(\s*(?:fmt\.Sprintf|.*\+)',
             r'db\.\w+\(\s*"[^"]*"\s*\+',
             r'Raw\s*\(\s*(?:fmt\.Sprintf|.*\+)',
+            # Variable passed to query methods
+            r'\.(?:Query|QueryRow|Exec)\s*\(\s*\w+\s*[,)]',
         ],
         'command_injection': [
             r'exec\.Command\s*\([^)]*(?:\+|fmt\.Sprintf)',
             r'exec\.CommandContext\s*\([^)]*(?:\+|fmt\.Sprintf)',
+            # exec.Command with variable arguments (shell execution)
+            r'exec\.Command\s*\(\s*"(?:sh|bash|cmd)"\s*,\s*"-c"\s*,',
+            # Command().Output() or .Run() etc
+            r'exec\.Command\s*\([^)]+\)\.(?:Output|Run|Start|CombinedOutput)',
         ],
         'path_traversal': [
             r'(?:Open|ReadFile|WriteFile)\s*\([^)]*(?:\+|filepath\.Join\s*\([^)]*r\.)',
@@ -131,6 +138,8 @@ class GoAnalyzer(LanguageAnalyzer):
         'ssrf': [
             r'http\.(?:Get|Post|PostForm)\s*\([^)]*(?:\+|fmt\.Sprintf)',
             r'NewRequest(?:WithContext)?\s*\([^)]*(?:\+|fmt\.Sprintf)',
+            # http.Get/Post with variable URL
+            r'http\.(?:Get|Post|PostForm|Head)\s*\(\s*\w+\s*\)',
         ],
         'hardcoded_secret': [
             r'(?:password|secret|apikey|api_key|token)\s*[=:]\s*["\'][^"\']{8,}["\']',
@@ -158,10 +167,15 @@ class GoAnalyzer(LanguageAnalyzer):
     def capabilities(self) -> AnalyzerCapabilities:
         return AnalyzerCapabilities(
             supports_ast=self._tree_sitter_available,
-            supports_dataflow=False,
+            supports_dataflow=True,
             supports_taint_tracking=True,
             supports_semantic_analysis=True,
         )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for Go language."""
+        return get_language_config('go')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:

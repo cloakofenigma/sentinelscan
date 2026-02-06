@@ -18,6 +18,7 @@ from ..base import (
 )
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence, Location
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -110,9 +111,14 @@ class CSharpAnalyzer(LanguageAnalyzer):
     def capabilities(self) -> AnalyzerCapabilities:
         return AnalyzerCapabilities(
             supports_ast=self._tree_sitter_available,
-            supports_dataflow=False,
+            supports_dataflow=True,
             supports_taint_tracking=True,
         )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for C# language."""
+        return get_language_config('csharp')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:
@@ -186,6 +192,7 @@ class CSharpAnalyzer(LanguageAnalyzer):
             r'(?:ExecuteReader|ExecuteNonQuery|ExecuteScalar|SqlCommand)\s*\([^)]*\+',
             r'(?:FromSql|FromSqlRaw)\s*\(\s*\$',
             r'(?:ExecuteSqlCommand|ExecuteSqlRaw)\s*\([^)]*\+',
+            r'(?:ExecuteSqlCommand|ExecuteSqlRaw)\s*\(\s*\$',  # String interpolation
             r'new\s+SqlCommand\s*\([^)]*\+',
         ]
         for pattern in patterns:

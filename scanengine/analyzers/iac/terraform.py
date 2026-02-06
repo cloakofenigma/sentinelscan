@@ -51,16 +51,16 @@ class TerraformAnalyzer(IaCAnalyzer):
             'description': 'Security group allows all ports',
             'cwe': 'CWE-284',
         },
-        # IAM misconfigurations
+        # IAM misconfigurations (support both HCL and JSON formats)
         'permissive_iam': {
-            'pattern': r'"Action"\s*:\s*"\*"',
+            'pattern': r'(?:"Action"\s*:\s*"\*"|Action\s*=\s*"\*")',
             'severity': Severity.HIGH,
             'title': 'Overly Permissive IAM',
             'description': 'IAM policy allows all actions',
             'cwe': 'CWE-269',
         },
         'iam_star_resource': {
-            'pattern': r'"Resource"\s*:\s*"\*"',
+            'pattern': r'(?:"Resource"\s*:\s*"\*"|Resource\s*=\s*"\*")',
             'severity': Severity.MEDIUM,
             'title': 'IAM Policy with Star Resource',
             'description': 'IAM policy applies to all resources',
@@ -79,6 +79,14 @@ class TerraformAnalyzer(IaCAnalyzer):
             'severity': Severity.HIGH,
             'title': 'Unencrypted RDS Storage',
             'description': 'RDS storage encryption disabled',
+            'cwe': 'CWE-311',
+        },
+        # EBS Volume encryption
+        'unencrypted_ebs': {
+            'pattern': r'encrypted\s*=\s*false',
+            'severity': Severity.HIGH,
+            'title': 'Unencrypted EBS Volume',
+            'description': 'EBS volume encryption disabled',
             'cwe': 'CWE-311',
         },
         # CloudTrail/Logging

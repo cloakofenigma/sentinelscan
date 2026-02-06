@@ -70,6 +70,7 @@ class DjangoAnalyzer(FrameworkAnalyzer):
             findings.extend(self._check_secret_key(file_path, content))
             findings.extend(self._check_csrf(file_path, content))
             findings.extend(self._check_clickjacking(file_path, content))
+            findings.extend(self._check_mark_safe_python(file_path, content))
         if file_path.suffix == '.html':
             findings.extend(self._check_template_xss(file_path, content))
         return findings
@@ -222,7 +223,7 @@ class DjangoAnalyzer(FrameworkAnalyzer):
 
     def _check_template_xss(self, file_path: Path, content: str) -> List[Finding]:
         findings = []
-        # Check for |safe filter
+        # Check for |safe filter in templates
         patterns = [
             (r'\{\{\s*\w+\s*\|\s*safe\s*\}\}', '|safe filter bypasses escaping'),
             (r'\{%\s*autoescape\s+off\s*%\}', 'autoescape off disables escaping'),
@@ -241,6 +242,51 @@ class DjangoAnalyzer(FrameworkAnalyzer):
                     cwe='CWE-79',
                     owasp='A03',
                     remediation='Avoid |safe filter with user input; use mark_safe() carefully',
+                ))
+
+        # Check for mark_safe() usage in template files
+        mark_safe_patterns = [
+            (r'mark_safe\s*\(\s*\w+\s*\)', 'mark_safe() with variable may cause XSS'),
+            (r'SafeString\s*\(\s*\w+\s*\)', 'SafeString with variable may cause XSS'),
+        ]
+        for pattern, desc in mark_safe_patterns:
+            for match in re.finditer(pattern, content):
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='DJANGO-XSS-002',
+                    title='Unsafe mark_safe Usage',
+                    description=desc,
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEDIUM,
+                    cwe='CWE-79',
+                    owasp='A03',
+                    remediation='Avoid mark_safe() with user input; sanitize data first',
+                ))
+        return findings
+
+    def _check_mark_safe_python(self, file_path: Path, content: str) -> List[Finding]:
+        """Check for mark_safe() usage in Python code."""
+        findings = []
+        patterns = [
+            (r'mark_safe\s*\(\s*\w+\s*\)', 'mark_safe() with variable may cause XSS'),
+            (r'SafeString\s*\(\s*\w+\s*\)', 'SafeString with variable may cause XSS'),
+        ]
+        for pattern, desc in patterns:
+            for match in re.finditer(pattern, content):
+                line_num = content[:match.start()].count('\n') + 1
+                findings.append(self._create_finding(
+                    rule_id='DJANGO-XSS-002',
+                    title='Unsafe mark_safe Usage',
+                    description=desc,
+                    file_path=file_path,
+                    line_number=line_num,
+                    severity=Severity.HIGH,
+                    confidence=Confidence.MEDIUM,
+                    cwe='CWE-79',
+                    owasp='A03',
+                    remediation='Avoid mark_safe() with user input; sanitize data first',
                 ))
         return findings
 

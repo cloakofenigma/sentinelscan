@@ -12,6 +12,7 @@ from pathlib import Path
 from ..base import LanguageAnalyzer, AnalyzerCapabilities, ClassInfo, FunctionInfo, MethodCall
 from ..registry import AnalyzerRegistry
 from ...models import Finding, Severity, Confidence
+from ...dataflow.multilang import get_language_config, LanguageDataflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,16 @@ class RubyAnalyzer(LanguageAnalyzer):
 
     @property
     def capabilities(self) -> AnalyzerCapabilities:
-        return AnalyzerCapabilities(supports_ast=self._tree_sitter_available, supports_taint_tracking=True)
+        return AnalyzerCapabilities(
+            supports_ast=self._tree_sitter_available,
+            supports_dataflow=True,
+            supports_taint_tracking=True,
+        )
+
+    @property
+    def dataflow_config(self) -> LanguageDataflowConfig:
+        """Get the dataflow configuration for Ruby language."""
+        return get_language_config('ruby')
 
     @property
     def dangerous_sinks(self) -> Dict[str, List[str]]:
@@ -169,9 +179,10 @@ class RubyAnalyzer(LanguageAnalyzer):
         patterns = [
             r'system\s*\([^)]*#\{',
             r'system\s*\([^)]*params\[',
-            r'`[^`]*#\{[^`]*params',
+            r'`[^`]*#\{',  # Backticks with interpolation
             r'exec\s*\([^)]*#\{',
             r'%x\[[^\]]*#\{',
+            r'%x\{[^}]*#\{',  # %x{} form
         ]
         for pattern in patterns:
             for match in re.finditer(pattern, content):
