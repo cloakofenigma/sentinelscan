@@ -6,6 +6,8 @@ This module defines abstract base classes that all analyzers must inherit from:
 - LanguageAnalyzer: AST-based language analyzers
 - FrameworkAnalyzer: Framework-specific security analyzers
 - IaCAnalyzer: Infrastructure-as-Code analyzers
+
+All analyzers include robust error handling for graceful degradation.
 """
 
 from abc import ABC, abstractmethod
@@ -14,6 +16,7 @@ from typing import Dict, List, Set, Optional, Any, Tuple
 from pathlib import Path
 from enum import Enum
 import logging
+import traceback
 
 # Import from existing models
 import sys
@@ -21,6 +24,34 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models import Finding, Severity, Confidence, Location
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Custom Exceptions
+# ============================================================================
+
+class AnalyzerError(Exception):
+    """Base exception for analyzer errors."""
+    def __init__(self, message: str, analyzer_name: str = "", file_path: str = ""):
+        self.message = message
+        self.analyzer_name = analyzer_name
+        self.file_path = file_path
+        super().__init__(f"[{analyzer_name}] {message}" if analyzer_name else message)
+
+
+class ParseError(AnalyzerError):
+    """Error during code parsing."""
+    pass
+
+
+class PatternMatchError(AnalyzerError):
+    """Error during pattern matching."""
+    pass
+
+
+class ConfigurationError(AnalyzerError):
+    """Error in analyzer configuration."""
+    pass
 
 
 # ============================================================================
@@ -196,7 +227,63 @@ class BaseAnalyzer(ABC):
 
     def can_analyze(self, file_path: Path) -> bool:
         """Check if this analyzer can process the given file."""
-        return file_path.suffix.lower() in self.supported_extensions
+        try:
+            return file_path.suffix.lower() in self.supported_extensions
+        except Exception:
+            return False
+
+    def safe_analyze_file(self, file_path: Path, content: str) -> List[Finding]:
+        """
+        Safely analyze a file with error handling.
+
+        This wrapper catches and logs errors without crashing the scan.
+
+        Args:
+            file_path: Path to the file
+            content: File contents
+
+        Returns:
+            List of findings (empty list on error)
+        """
+        try:
+            return self.analyze_file(file_path, content)
+        except UnicodeDecodeError as e:
+            logger.warning(f"[{self.name}] Unicode error in {file_path}: {e}")
+            return []
+        except MemoryError as e:
+            logger.error(f"[{self.name}] Memory error analyzing {file_path}: {e}")
+            return []
+        except RecursionError as e:
+            logger.error(f"[{self.name}] Recursion limit in {file_path}: {e}")
+            return []
+        except Exception as e:
+            logger.warning(f"[{self.name}] Error analyzing {file_path}: {e}")
+            logger.debug(traceback.format_exc())
+            return []
+
+    def safe_analyze_files(self, files: List[Path], content_cache: Dict[str, str]) -> List[Finding]:
+        """
+        Safely analyze multiple files with error handling.
+
+        Args:
+            files: List of file paths
+            content_cache: File contents cache
+
+        Returns:
+            List of findings (continues on error)
+        """
+        findings = []
+        for file_path in files:
+            try:
+                if self.can_analyze(file_path):
+                    content = content_cache.get(str(file_path), "")
+                    if content:
+                        file_findings = self.safe_analyze_file(file_path, content)
+                        findings.extend(file_findings)
+            except Exception as e:
+                logger.warning(f"[{self.name}] Error processing {file_path}: {e}")
+                continue
+        return findings
 
     def _create_finding(
         self,
@@ -332,14 +419,21 @@ class LanguageAnalyzer(BaseAnalyzer, ABC):
             self._tree_sitter_available = True
             logger.debug(f"Tree-sitter initialized for {self.language_name}")
         except ImportError as e:
-            logger.warning(f"Tree-sitter not available for {self.language_name}: {e}")
+            logger.debug(f"Tree-sitter not available for {self.language_name}: {e}")
+            self._tree_sitter_available = False
+        except Exception as e:
+            logger.warning(f"Failed to initialize tree-sitter for {self.language_name}: {e}")
             self._tree_sitter_available = False
 
     def _parse(self, code: str):
         """Parse code and return the syntax tree."""
         if not self._tree_sitter_available:
             return None
-        return self.parser.parse(bytes(code, 'utf-8'))
+        try:
+            return self.parser.parse(bytes(code, 'utf-8'))
+        except Exception as e:
+            logger.debug(f"Parse error in {self.language_name}: {e}")
+            return None
 
     def _find_nodes_by_type(self, node, node_type: str) -> List:
         """Recursively find all nodes of a specific type."""
@@ -481,23 +575,36 @@ class IaCAnalyzer(BaseAnalyzer, ABC):
         pass
 
     def analyze_file(self, file_path: Path, content: str) -> List[Finding]:
-        """Analyze a single IaC file."""
-        resources = self.get_resources(file_path, content)
-        return self.check_misconfigurations(resources)
+        """Analyze a single IaC file with error handling."""
+        try:
+            resources = self.get_resources(file_path, content)
+            return self.check_misconfigurations(resources)
+        except Exception as e:
+            logger.warning(f"[{self.name}] Error analyzing IaC file {file_path}: {e}")
+            return []
 
     def analyze_files(self, files: List[Path], content_cache: Dict[str, str]) -> List[Finding]:
-        """Analyze multiple IaC files."""
+        """Analyze multiple IaC files with error handling."""
         all_findings = []
         all_resources = []
 
         for file_path in files:
-            if not self.can_analyze(file_path):
+            try:
+                if not self.can_analyze(file_path):
+                    continue
+                content = content_cache.get(str(file_path), "")
+                if content:
+                    resources = self.get_resources(file_path, content)
+                    all_resources.extend(resources)
+            except Exception as e:
+                logger.warning(f"[{self.name}] Error parsing IaC file {file_path}: {e}")
                 continue
-            content = content_cache.get(str(file_path), "")
-            if content:
-                resources = self.get_resources(file_path, content)
-                all_resources.extend(resources)
 
         # Check misconfigurations across all resources
-        all_findings = self.check_misconfigurations(all_resources)
+        try:
+            all_findings = self.check_misconfigurations(all_resources)
+        except Exception as e:
+            logger.warning(f"[{self.name}] Error checking misconfigurations: {e}")
+            all_findings = []
+
         return all_findings

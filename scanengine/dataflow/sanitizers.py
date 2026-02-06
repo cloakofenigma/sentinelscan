@@ -513,6 +513,577 @@ class SanitizerRegistry:
             sanitizes_for={SinkType.FILE_ACCESS},
             description="Node.js path.resolve"
         ),
+
+        # ----- sanitize-html -----
+        Sanitizer(
+            method_name='sanitizeHtml',
+            class_name=None,
+            sanitizes_for={SinkType.XSS},
+            description="sanitize-html library"
+        ),
+
+        # ----- escape-html -----
+        Sanitizer(
+            method_name='escapeHtml',
+            class_name=None,
+            sanitizes_for={SinkType.XSS},
+            description="escape-html library"
+        ),
+
+        # ----- lodash/underscore -----
+        Sanitizer(
+            method_name='escape',
+            class_name='_',
+            sanitizes_for={SinkType.XSS},
+            description="lodash/underscore escape"
+        ),
+
+        # ----- encodeURIComponent -----
+        Sanitizer(
+            method_name='encodeURIComponent',
+            class_name=None,
+            sanitizes_for={SinkType.XSS, SinkType.SSRF},
+            description="JavaScript URL encoding"
+        ),
+        Sanitizer(
+            method_name='encodeURI',
+            class_name=None,
+            sanitizes_for={SinkType.SSRF},
+            description="JavaScript URI encoding"
+        ),
+    ]
+
+    # ============================================================
+    # GO SANITIZERS
+    # ============================================================
+
+    GO_SANITIZERS = [
+        # ----- html/template (auto-escaping) -----
+        Sanitizer(
+            method_name='HTMLEscapeString',
+            class_name='html',
+            sanitizes_for={SinkType.XSS},
+            description="Go html.HTMLEscapeString"
+        ),
+        Sanitizer(
+            method_name='HTMLEscaper',
+            class_name='html',
+            sanitizes_for={SinkType.XSS},
+            description="Go html.HTMLEscaper"
+        ),
+        Sanitizer(
+            method_name='EscapeString',
+            class_name='html',
+            sanitizes_for={SinkType.XSS},
+            description="Go html.EscapeString"
+        ),
+
+        # ----- url package -----
+        Sanitizer(
+            method_name='QueryEscape',
+            class_name='url',
+            sanitizes_for={SinkType.XSS, SinkType.SSRF},
+            description="Go url.QueryEscape"
+        ),
+        Sanitizer(
+            method_name='PathEscape',
+            class_name='url',
+            sanitizes_for={SinkType.FILE_ACCESS, SinkType.SSRF},
+            description="Go url.PathEscape"
+        ),
+
+        # ----- filepath package -----
+        Sanitizer(
+            method_name='Clean',
+            class_name='filepath',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="Go filepath.Clean"
+        ),
+        Sanitizer(
+            method_name='Abs',
+            class_name='filepath',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="Go filepath.Abs"
+        ),
+
+        # ----- database/sql parameterized -----
+        Sanitizer(
+            method_name='Prepare',
+            class_name='DB',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="Go sql.Prepare (parameterized)"
+        ),
+        Sanitizer(
+            method_name='QueryRow',
+            class_name='DB',
+            sanitizes_for={SinkType.SQL_QUERY},
+            argument_index=1,  # Args after query are params
+            description="Go sql.QueryRow with params"
+        ),
+
+        # ----- strconv (type conversion) -----
+        Sanitizer(
+            method_name='Atoi',
+            class_name='strconv',
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description="Go strconv.Atoi (int conversion)"
+        ),
+        Sanitizer(
+            method_name='ParseInt',
+            class_name='strconv',
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description="Go strconv.ParseInt"
+        ),
+
+        # ----- bluemonday (HTML sanitizer) -----
+        Sanitizer(
+            method_name='Sanitize',
+            class_name='Policy',
+            sanitizes_for={SinkType.XSS},
+            description="bluemonday HTML sanitizer"
+        ),
+        Sanitizer(
+            method_name='SanitizeBytes',
+            class_name='Policy',
+            sanitizes_for={SinkType.XSS},
+            description="bluemonday bytes sanitizer"
+        ),
+    ]
+
+    # ============================================================
+    # C# / .NET SANITIZERS
+    # ============================================================
+
+    CSHARP_SANITIZERS = [
+        # ----- System.Web.HttpUtility -----
+        Sanitizer(
+            method_name='HtmlEncode',
+            class_name='HttpUtility',
+            sanitizes_for={SinkType.XSS},
+            description=".NET HttpUtility.HtmlEncode"
+        ),
+        Sanitizer(
+            method_name='HtmlAttributeEncode',
+            class_name='HttpUtility',
+            sanitizes_for={SinkType.XSS},
+            description=".NET HttpUtility.HtmlAttributeEncode"
+        ),
+        Sanitizer(
+            method_name='UrlEncode',
+            class_name='HttpUtility',
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description=".NET HttpUtility.UrlEncode"
+        ),
+        Sanitizer(
+            method_name='JavaScriptStringEncode',
+            class_name='HttpUtility',
+            sanitizes_for={SinkType.XSS},
+            description=".NET HttpUtility.JavaScriptStringEncode"
+        ),
+
+        # ----- System.Net.WebUtility -----
+        Sanitizer(
+            method_name='HtmlEncode',
+            class_name='WebUtility',
+            sanitizes_for={SinkType.XSS},
+            description=".NET WebUtility.HtmlEncode"
+        ),
+        Sanitizer(
+            method_name='UrlEncode',
+            class_name='WebUtility',
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description=".NET WebUtility.UrlEncode"
+        ),
+
+        # ----- System.Security.SecurityElement -----
+        Sanitizer(
+            method_name='Escape',
+            class_name='SecurityElement',
+            sanitizes_for={SinkType.XSS},
+            description=".NET SecurityElement.Escape"
+        ),
+
+        # ----- AntiXSS Library -----
+        Sanitizer(
+            method_name='HtmlEncode',
+            class_name='Encoder',
+            package_pattern=r'Microsoft\.Security\.Application',
+            sanitizes_for={SinkType.XSS},
+            description="AntiXSS HtmlEncode"
+        ),
+        Sanitizer(
+            method_name='JavaScriptEncode',
+            class_name='Encoder',
+            package_pattern=r'Microsoft\.Security\.Application',
+            sanitizes_for={SinkType.XSS},
+            description="AntiXSS JavaScriptEncode"
+        ),
+        Sanitizer(
+            method_name='UrlEncode',
+            class_name='Encoder',
+            package_pattern=r'Microsoft\.Security\.Application',
+            sanitizes_for={SinkType.SSRF},
+            description="AntiXSS UrlEncode"
+        ),
+        Sanitizer(
+            method_name='LdapEncode',
+            class_name='Encoder',
+            package_pattern=r'Microsoft\.Security\.Application',
+            sanitizes_for={SinkType.LDAP_QUERY},
+            description="AntiXSS LdapEncode"
+        ),
+
+        # ----- SqlParameter (parameterized) -----
+        Sanitizer(
+            method_name='AddWithValue',
+            class_name='SqlParameterCollection',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description=".NET SqlParameter (parameterized)"
+        ),
+        Sanitizer(
+            method_name='Add',
+            class_name='SqlParameterCollection',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description=".NET SqlParameter.Add"
+        ),
+
+        # ----- Path class -----
+        Sanitizer(
+            method_name='GetFullPath',
+            class_name='Path',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description=".NET Path.GetFullPath"
+        ),
+
+        # ----- Type conversion -----
+        Sanitizer(
+            method_name='Parse',
+            class_name='Int32',
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description=".NET Int32.Parse"
+        ),
+        Sanitizer(
+            method_name='TryParse',
+            class_name='Int32',
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description=".NET Int32.TryParse"
+        ),
+    ]
+
+    # ============================================================
+    # RUBY SANITIZERS
+    # ============================================================
+
+    RUBY_SANITIZERS = [
+        # ----- ERB::Util -----
+        Sanitizer(
+            method_name='html_escape',
+            class_name='ERB::Util',
+            sanitizes_for={SinkType.XSS},
+            description="Ruby ERB html_escape"
+        ),
+        Sanitizer(
+            method_name='h',
+            class_name=None,  # Rails helper
+            sanitizes_for={SinkType.XSS},
+            description="Rails h() helper"
+        ),
+
+        # ----- CGI -----
+        Sanitizer(
+            method_name='escapeHTML',
+            class_name='CGI',
+            sanitizes_for={SinkType.XSS},
+            description="Ruby CGI.escapeHTML"
+        ),
+        Sanitizer(
+            method_name='escape',
+            class_name='CGI',
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description="Ruby CGI.escape"
+        ),
+
+        # ----- Rack::Utils -----
+        Sanitizer(
+            method_name='escape_html',
+            class_name='Rack::Utils',
+            sanitizes_for={SinkType.XSS},
+            description="Rack escape_html"
+        ),
+
+        # ----- Rails sanitize helpers -----
+        Sanitizer(
+            method_name='sanitize',
+            class_name='ActionView',
+            sanitizes_for={SinkType.XSS},
+            description="Rails sanitize helper"
+        ),
+        Sanitizer(
+            method_name='strip_tags',
+            class_name='ActionView',
+            sanitizes_for={SinkType.XSS},
+            description="Rails strip_tags"
+        ),
+
+        # ----- Shellwords -----
+        Sanitizer(
+            method_name='escape',
+            class_name='Shellwords',
+            sanitizes_for={SinkType.COMMAND_EXEC},
+            description="Ruby Shellwords.escape"
+        ),
+        Sanitizer(
+            method_name='shellescape',
+            class_name='String',
+            sanitizes_for={SinkType.COMMAND_EXEC},
+            description="Ruby String#shellescape"
+        ),
+
+        # ----- ActiveRecord (parameterized) -----
+        Sanitizer(
+            method_name='sanitize_sql',
+            class_name='ActiveRecord',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="ActiveRecord sanitize_sql"
+        ),
+        Sanitizer(
+            method_name='sanitize_sql_array',
+            class_name='ActiveRecord',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="ActiveRecord sanitize_sql_array"
+        ),
+
+        # ----- File path -----
+        Sanitizer(
+            method_name='realpath',
+            class_name='File',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="Ruby File.realpath"
+        ),
+        Sanitizer(
+            method_name='expand_path',
+            class_name='File',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="Ruby File.expand_path"
+        ),
+
+        # ----- Type conversion -----
+        Sanitizer(
+            method_name='to_i',
+            class_name='String',
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description="Ruby String#to_i"
+        ),
+    ]
+
+    # ============================================================
+    # RUST SANITIZERS
+    # ============================================================
+
+    RUST_SANITIZERS = [
+        # ----- html_escape crate -----
+        Sanitizer(
+            method_name='encode_text',
+            class_name='html_escape',
+            sanitizes_for={SinkType.XSS},
+            description="Rust html_escape::encode_text"
+        ),
+        Sanitizer(
+            method_name='encode_safe',
+            class_name='html_escape',
+            sanitizes_for={SinkType.XSS},
+            description="Rust html_escape::encode_safe"
+        ),
+
+        # ----- askama (auto-escaping templates) -----
+        Sanitizer(
+            method_name='escape',
+            class_name='askama',
+            sanitizes_for={SinkType.XSS},
+            description="Askama template escaping"
+        ),
+
+        # ----- ammonia (HTML sanitizer) -----
+        Sanitizer(
+            method_name='clean',
+            class_name='ammonia',
+            sanitizes_for={SinkType.XSS},
+            description="Ammonia HTML sanitizer"
+        ),
+
+        # ----- urlencoding -----
+        Sanitizer(
+            method_name='encode',
+            class_name='urlencoding',
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description="Rust urlencoding::encode"
+        ),
+
+        # ----- std::path -----
+        Sanitizer(
+            method_name='canonicalize',
+            class_name='Path',
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="Rust Path::canonicalize"
+        ),
+
+        # ----- sqlx (parameterized) -----
+        Sanitizer(
+            method_name='bind',
+            class_name='Query',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="sqlx query binding"
+        ),
+
+        # ----- shell-escape -----
+        Sanitizer(
+            method_name='escape',
+            class_name='shell_escape',
+            sanitizes_for={SinkType.COMMAND_EXEC},
+            description="Rust shell-escape"
+        ),
+    ]
+
+    # ============================================================
+    # PHP SANITIZERS
+    # ============================================================
+
+    PHP_SANITIZERS = [
+        # ----- Built-in functions -----
+        Sanitizer(
+            method_name='htmlspecialchars',
+            class_name=None,
+            sanitizes_for={SinkType.XSS},
+            description="PHP htmlspecialchars"
+        ),
+        Sanitizer(
+            method_name='htmlentities',
+            class_name=None,
+            sanitizes_for={SinkType.XSS},
+            description="PHP htmlentities"
+        ),
+        Sanitizer(
+            method_name='strip_tags',
+            class_name=None,
+            sanitizes_for={SinkType.XSS},
+            description="PHP strip_tags"
+        ),
+        Sanitizer(
+            method_name='escapeshellarg',
+            class_name=None,
+            sanitizes_for={SinkType.COMMAND_EXEC},
+            description="PHP escapeshellarg"
+        ),
+        Sanitizer(
+            method_name='escapeshellcmd',
+            class_name=None,
+            sanitizes_for={SinkType.COMMAND_EXEC},
+            description="PHP escapeshellcmd"
+        ),
+        Sanitizer(
+            method_name='addslashes',
+            class_name=None,
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="PHP addslashes"
+        ),
+
+        # ----- mysqli -----
+        Sanitizer(
+            method_name='real_escape_string',
+            class_name='mysqli',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="mysqli real_escape_string"
+        ),
+        Sanitizer(
+            method_name='mysqli_real_escape_string',
+            class_name=None,
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="mysqli_real_escape_string"
+        ),
+
+        # ----- PDO (parameterized) -----
+        Sanitizer(
+            method_name='prepare',
+            class_name='PDO',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="PDO prepare (parameterized)"
+        ),
+        Sanitizer(
+            method_name='bindParam',
+            class_name='PDOStatement',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="PDO bindParam"
+        ),
+        Sanitizer(
+            method_name='bindValue',
+            class_name='PDOStatement',
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="PDO bindValue"
+        ),
+
+        # ----- URL encoding -----
+        Sanitizer(
+            method_name='urlencode',
+            class_name=None,
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description="PHP urlencode"
+        ),
+        Sanitizer(
+            method_name='rawurlencode',
+            class_name=None,
+            sanitizes_for={SinkType.SSRF, SinkType.XSS},
+            description="PHP rawurlencode"
+        ),
+
+        # ----- Path functions -----
+        Sanitizer(
+            method_name='realpath',
+            class_name=None,
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="PHP realpath"
+        ),
+        Sanitizer(
+            method_name='basename',
+            class_name=None,
+            sanitizes_for={SinkType.FILE_ACCESS},
+            description="PHP basename"
+        ),
+
+        # ----- Filter functions -----
+        Sanitizer(
+            method_name='filter_var',
+            class_name=None,
+            sanitizes_for={SinkType.XSS, SinkType.SQL_QUERY},
+            description="PHP filter_var"
+        ),
+        Sanitizer(
+            method_name='filter_input',
+            class_name=None,
+            sanitizes_for={SinkType.XSS, SinkType.SQL_QUERY},
+            description="PHP filter_input"
+        ),
+
+        # ----- Intval (type coercion) -----
+        Sanitizer(
+            method_name='intval',
+            class_name=None,
+            sanitizes_for={SinkType.SQL_QUERY, SinkType.COMMAND_EXEC},
+            description="PHP intval"
+        ),
+        Sanitizer(
+            method_name='floatval',
+            class_name=None,
+            sanitizes_for={SinkType.SQL_QUERY},
+            description="PHP floatval"
+        ),
+
+        # ----- HTMLPurifier -----
+        Sanitizer(
+            method_name='purify',
+            class_name='HTMLPurifier',
+            sanitizes_for={SinkType.XSS},
+            description="HTMLPurifier"
+        ),
     ]
 
     def __init__(self, custom_sanitizers: Optional[List[Sanitizer]] = None):
@@ -525,10 +1096,15 @@ class SanitizerRegistry:
         # Index sanitizers by method name for fast lookup
         self._by_method: Dict[str, List[Sanitizer]] = defaultdict(list)
 
-        # Load built-in sanitizers
+        # Load built-in sanitizers for all supported languages
         self._load_sanitizers(self.JAVA_SANITIZERS)
         self._load_sanitizers(self.PYTHON_SANITIZERS)
         self._load_sanitizers(self.JAVASCRIPT_SANITIZERS)
+        self._load_sanitizers(self.GO_SANITIZERS)
+        self._load_sanitizers(self.CSHARP_SANITIZERS)
+        self._load_sanitizers(self.RUBY_SANITIZERS)
+        self._load_sanitizers(self.RUST_SANITIZERS)
+        self._load_sanitizers(self.PHP_SANITIZERS)
 
         # Load custom sanitizers
         if custom_sanitizers:
@@ -608,28 +1184,47 @@ class SanitizerRegistry:
 
 # Methods that preserve taint (transform but don't sanitize)
 TAINT_PRESERVING_METHODS = {
-    # String transformations
-    'trim', 'strip', 'stripLeading', 'stripTrailing',
-    'toLowerCase', 'toUpperCase',
-    'substring', 'subSequence',
-    'replace', 'replaceAll', 'replaceFirst',
-    'split', 'join',
-    'concat', 'append', 'prepend',
-    'toString', 'valueOf',
-    'format',
-    'chars', 'bytes', 'toCharArray',
+    # String transformations (Java/JS/Python/etc.)
+    'trim', 'strip', 'stripLeading', 'stripTrailing', 'lstrip', 'rstrip',
+    'toLowerCase', 'toUpperCase', 'lower', 'upper', 'capitalize', 'title',
+    'substring', 'subSequence', 'slice', 'substr',
+    'replace', 'replaceAll', 'replaceFirst', 'gsub', 'sub',
+    'split', 'join', 'rsplit',
+    'concat', 'append', 'prepend', 'push', 'unshift',
+    'toString', 'valueOf', 'str', '__str__',
+    'format', 'sprintf', 'printf',
+    'chars', 'bytes', 'toCharArray', 'encode', 'decode',
     'getBytes',
 
     # Collection transformations
-    'map', 'filter', 'flatMap', 'reduce',
-    'sorted', 'distinct', 'limit', 'skip',
-    'collect', 'toList', 'toArray',
+    'map', 'filter', 'flatMap', 'reduce', 'fold',
+    'sorted', 'sort', 'distinct', 'uniq', 'limit', 'skip', 'take', 'drop',
+    'collect', 'toList', 'toArray', 'list', 'tuple',
+    'each', 'forEach', 'for_each',
+    'first', 'last', 'reverse', 'reversed',
+    'zip', 'enumerate', 'iter',
 
     # Builder patterns
-    'builder', 'build', 'add', 'set',
+    'builder', 'build', 'add', 'set', 'with', 'and',
 
     # Optional unwrapping
-    'get', 'orElse', 'orElseGet',
+    'get', 'orElse', 'orElseGet', 'unwrap', 'unwrap_or', 'expect',
+    'getOrDefault', 'getOrElse',
+
+    # Ruby-specific
+    'chomp', 'chop', 'squeeze', 'swapcase', 'reverse',
+    'chars', 'lines', 'each_char', 'each_line',
+
+    # Go-specific
+    'String', 'Bytes', 'Runes',
+
+    # Rust-specific
+    'as_str', 'as_bytes', 'into_string', 'to_string', 'to_owned',
+    'chars', 'lines', 'split_whitespace',
+
+    # PHP-specific
+    'trim', 'ltrim', 'rtrim', 'strtolower', 'strtoupper',
+    'substr', 'str_replace', 'preg_replace', 'explode', 'implode',
 }
 
 

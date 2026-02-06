@@ -1,10 +1,16 @@
 """
 Pattern matcher - performs regex-based pattern matching on source code
+
+Enhanced with context-aware analysis to reduce false positives:
+- Comment/string detection
+- Safe pattern recognition
+- Sanitizer detection
+- Test file awareness
 """
 
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Generator, Set
+from typing import List, Optional, Tuple, Generator, Set, Dict
 import logging
 
 from .models import Rule, RulePattern, Finding, Location, Severity, Confidence
@@ -12,8 +18,69 @@ from .models import Rule, RulePattern, Finding, Location, Severity, Confidence
 logger = logging.getLogger(__name__)
 
 
+# Patterns that indicate safe usage (reduce false positives)
+SAFE_PATTERNS: Dict[str, List[str]] = {
+    'sql_injection': [
+        r'PreparedStatement',
+        r'createQuery\s*\([^+]*\)',  # JPA without concatenation
+        r'@Param\s*\(',  # MyBatis parameter binding
+        r'\?\s*[,)]',  # Parameterized placeholder
+        r':\w+',  # Named parameters
+        r'setString\s*\(',
+        r'setInt\s*\(',
+        r'setParameter\s*\(',
+    ],
+    'command_injection': [
+        r'ProcessBuilder\s*\(\s*Arrays\.asList',  # Safe array form
+        r'new\s+String\s*\[\s*\]\s*\{',  # String array (safer)
+        r'escapeshellarg',  # PHP sanitizer
+        r'shlex\.quote',  # Python sanitizer
+    ],
+    'xss': [
+        r'htmlEscape',
+        r'escapeHtml',
+        r'sanitize',
+        r'encodeForHTML',
+        r'textContent\s*=',  # Safe DOM assignment
+        r'innerText\s*=',  # Safe text assignment
+    ],
+    'path_traversal': [
+        r'getCanonicalPath',
+        r'normalize\s*\(',
+        r'Paths\.get\s*\([^,)]+\)',  # Single-arg Paths.get
+        r'realpath',
+    ],
+}
+
+# Comment patterns for different languages
+COMMENT_PATTERNS = {
+    'java': [r'//.*$', r'/\*.*?\*/'],
+    'python': [r'#.*$', r'""".*?"""', r"'''.*?'''"],
+    'javascript': [r'//.*$', r'/\*.*?\*/'],
+    'go': [r'//.*$', r'/\*.*?\*/'],
+    'ruby': [r'#.*$', r'=begin.*?=end'],
+    'php': [r'//.*$', r'#.*$', r'/\*.*?\*/'],
+}
+
+# String literal patterns
+STRING_PATTERNS = {
+    'java': [r'"(?:[^"\\]|\\.)*"', r"'(?:[^'\\]|\\.)*'"],
+    'python': [r'""".*?"""', r"'''.*?'''", r'"(?:[^"\\]|\\.)*"', r"'(?:[^'\\]|\\.)*'"],
+    'javascript': [r'`(?:[^`\\]|\\.)*`', r'"(?:[^"\\]|\\.)*"', r"'(?:[^'\\]|\\.)*'"],
+}
+
+
 class PatternMatcher:
-    """Regex-based pattern matching engine"""
+    """
+    Regex-based pattern matching engine with context awareness.
+
+    Features:
+    - Language-specific pattern matching
+    - Comment and string detection to reduce false positives
+    - Safe pattern recognition
+    - Nosec directive support
+    - Test file filtering
+    """
 
     # File extensions to language mapping
     EXTENSION_LANGUAGE_MAP = {
@@ -39,13 +106,28 @@ class PatternMatcher:
         '.scala': 'scala',
     }
 
-    def __init__(self):
+    def __init__(self, context_aware: bool = True, skip_tests: bool = False):
+        """
+        Initialize pattern matcher.
+
+        Args:
+            context_aware: Enable context-aware analysis to reduce false positives
+            skip_tests: Skip findings in test files
+        """
         self._compiled_patterns: dict = {}
+        self._context_aware = context_aware
+        self._skip_tests = skip_tests
+        self._comment_cache: Dict[str, Set[int]] = {}  # file -> set of comment line numbers
 
     def match_file(self, filepath: Path, content: str, rules: List[Rule]) -> List[Finding]:
         """Match all applicable rules against a file's content"""
         findings = []
         file_language = self._get_language(filepath)
+
+        # Skip test files if configured
+        if self._skip_tests and self._is_test_file(filepath):
+            logger.debug(f"Skipping test file: {filepath}")
+            return findings
 
         for rule in rules:
             if not rule.enabled:
@@ -54,16 +136,20 @@ class PatternMatcher:
             if not rule.applies_to_file(filepath):
                 continue
 
-            rule_findings = self._match_rule(filepath, content, rule, file_language)
-            findings.extend(rule_findings)
+            try:
+                rule_findings = self._match_rule(filepath, content, rule, file_language)
+                findings.extend(rule_findings)
+            except Exception as e:
+                logger.warning(f"Error matching rule {rule.id} against {filepath}: {e}")
 
         return findings
 
     def _match_rule(self, filepath: Path, content: str, rule: Rule,
                     file_language: str) -> List[Finding]:
-        """Match a single rule against file content"""
+        """Match a single rule against file content with context awareness"""
         findings = []
         lines = content.splitlines()
+        vuln_type = self._get_vuln_type_from_rule(rule)
 
         for pattern in rule.patterns:
             # Check if pattern applies to this language
@@ -74,6 +160,9 @@ class PatternMatcher:
                 matches = self._find_matches(content, lines, pattern)
 
                 for line_num, line_content, match_text in matches:
+                    # Calculate match position for context checks
+                    match_pos = sum(len(lines[i]) + 1 for i in range(line_num - 1)) if line_num > 0 else 0
+
                     # Check for "missing" condition - skip if the pattern that should be missing is found
                     if pattern.missing:
                         if self._check_missing_pattern(content, pattern.missing):
@@ -82,6 +171,18 @@ class PatternMatcher:
                     # Check for nosec suppression
                     if self._is_nosec_suppressed(line_content, rule.id):
                         continue
+
+                    # Context-aware false positive reduction
+                    if self._context_aware:
+                        # Skip if in comment
+                        if self._is_in_comment(content, match_pos, file_language):
+                            logger.debug(f"Skipping match in comment: {rule.id} at line {line_num}")
+                            continue
+
+                        # Skip if safe pattern is present nearby
+                        if vuln_type and self._has_safe_pattern(content, line_num, vuln_type):
+                            logger.debug(f"Skipping match with safe pattern: {rule.id} at line {line_num}")
+                            continue
 
                     finding = Finding(
                         rule_id=rule.id,
@@ -199,6 +300,117 @@ class PatternMatcher:
         """Determine the language from file extension"""
         suffix = filepath.suffix.lower()
         return self.EXTENSION_LANGUAGE_MAP.get(suffix, 'unknown')
+
+    def _is_test_file(self, filepath: Path) -> bool:
+        """Check if file is a test file"""
+        name = filepath.name.lower()
+        path_str = str(filepath).lower()
+        test_indicators = [
+            'test_', '_test.', 'test.', 'tests/', '/test/',
+            'spec_', '_spec.', 'spec.', 'specs/', '/spec/',
+            '__tests__', 'testing/', '/testing/',
+        ]
+        return any(ind in name or ind in path_str for ind in test_indicators)
+
+    def _is_in_comment(self, content: str, position: int, language: str) -> bool:
+        """Check if a position in content is inside a comment"""
+        if not self._context_aware:
+            return False
+
+        patterns = COMMENT_PATTERNS.get(language, COMMENT_PATTERNS.get('java', []))
+        line_start = content.rfind('\n', 0, position) + 1
+        line_end = content.find('\n', position)
+        if line_end == -1:
+            line_end = len(content)
+        line = content[line_start:line_end]
+
+        # Check single-line comment
+        for pattern in patterns:
+            if '//' in pattern or '#' in pattern:
+                try:
+                    match = re.search(pattern, line)
+                    if match and line_start + match.start() < position:
+                        return True
+                except re.error:
+                    pass
+
+        # Check multi-line comments
+        for pattern in patterns:
+            if '/*' in pattern or '"""' in pattern or "'''" in pattern:
+                try:
+                    for match in re.finditer(pattern, content, re.DOTALL):
+                        if match.start() <= position <= match.end():
+                            return True
+                except re.error:
+                    pass
+
+        return False
+
+    def _is_in_string_literal(self, content: str, position: int, language: str) -> bool:
+        """Check if position is inside a string literal"""
+        if not self._context_aware:
+            return False
+
+        patterns = STRING_PATTERNS.get(language, STRING_PATTERNS.get('java', []))
+
+        for pattern in patterns:
+            try:
+                for match in re.finditer(pattern, content, re.DOTALL):
+                    # Don't count match starting at position (the pattern itself might be a string)
+                    if match.start() < position < match.end():
+                        return True
+            except re.error:
+                pass
+
+        return False
+
+    def _has_safe_pattern(self, content: str, line_num: int, vuln_type: str) -> bool:
+        """Check if the surrounding context contains safe patterns"""
+        if not self._context_aware:
+            return False
+
+        safe_patterns = SAFE_PATTERNS.get(vuln_type, [])
+        if not safe_patterns:
+            return False
+
+        lines = content.splitlines()
+        # Check current line and nearby lines (context window of 5 lines)
+        start = max(0, line_num - 3)
+        end = min(len(lines), line_num + 2)
+        context = '\n'.join(lines[start:end])
+
+        for pattern in safe_patterns:
+            try:
+                if re.search(pattern, context, re.IGNORECASE):
+                    return True
+            except re.error:
+                pass
+
+        return False
+
+    def _get_vuln_type_from_rule(self, rule: Rule) -> Optional[str]:
+        """Extract vulnerability type from rule ID or tags"""
+        rule_id_lower = rule.id.lower()
+        tags_lower = [t.lower() for t in (rule.tags or [])]
+
+        type_map = {
+            'sqli': 'sql_injection',
+            'sql': 'sql_injection',
+            'cmdi': 'command_injection',
+            'cmd': 'command_injection',
+            'command': 'command_injection',
+            'xss': 'xss',
+            'cross-site': 'xss',
+            'path': 'path_traversal',
+            'traversal': 'path_traversal',
+            'lfi': 'path_traversal',
+        }
+
+        for key, vuln_type in type_map.items():
+            if key in rule_id_lower or any(key in t for t in tags_lower):
+                return vuln_type
+
+        return None
 
 
 class SecretMatcher(PatternMatcher):
