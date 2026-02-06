@@ -1,19 +1,31 @@
 """
-Pattern matcher - performs regex-based pattern matching on source code
+Pattern matcher - performs regex-based pattern matching on source code.
 
 Enhanced with context-aware analysis to reduce false positives:
 - Comment/string detection
 - Safe pattern recognition
 - Sanitizer detection
 - Test file awareness
+
+Example:
+    matcher = PatternMatcher(context_aware=True)
+    findings = matcher.match_file(path, content, rules)
 """
+
+from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import List, Optional, Tuple, Generator, Set, Dict
+from typing import (
+    List, Optional, Tuple, Generator, Set, Dict,
+    Pattern, Match, Any, TYPE_CHECKING
+)
 import logging
 
 from .models import Rule, RulePattern, Finding, Location, Severity, Confidence
+
+if TYPE_CHECKING:
+    from re import Pattern as RePattern
 
 logger = logging.getLogger(__name__)
 

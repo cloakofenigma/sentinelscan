@@ -1,11 +1,25 @@
 """
-Data models for SentinelScan
+Data models for SentinelScan.
+
+This module defines all core data structures used throughout the scanner:
+
+- Severity/Confidence: Enums for finding classification
+- Rule/RulePattern: Security rule definitions
+- Finding/Location: Detected vulnerability information
+- ScanResult: Complete scan output
+
+All classes are immutable dataclasses with full type annotations.
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Iterator, TYPE_CHECKING
 from pathlib import Path
+
+if TYPE_CHECKING:
+    from typing import Self
 
 
 class Severity(Enum):
@@ -184,7 +198,56 @@ class ScanResult:
         return [f for f in self.findings if f.severity == severity]
 
     def sort_findings(self) -> None:
-        """Sort findings by severity (critical first), then by file"""
+        """Sort findings by severity (critical first), then by file."""
         self.findings.sort(
             key=lambda f: (-f.severity.priority, f.location.file_path, f.location.line_number)
         )
+
+    def filter_by_severity(self, min_severity: Severity) -> List[Finding]:
+        """Get findings at or above a minimum severity level."""
+        return [f for f in self.findings if f.severity.priority >= min_severity.priority]
+
+    def filter_by_confidence(self, min_confidence: Confidence) -> List[Finding]:
+        """Get findings at or above a minimum confidence level."""
+        confidence_priority = {'high': 3, 'medium': 2, 'low': 1}
+        min_priority = confidence_priority[min_confidence.value]
+        return [
+            f for f in self.findings
+            if confidence_priority[f.confidence.value] >= min_priority
+        ]
+
+    def filter_by_cwe(self, cwe: str) -> List[Finding]:
+        """Get findings matching a specific CWE."""
+        return [f for f in self.findings if f.cwe == cwe]
+
+    def filter_by_file(self, file_path: str) -> List[Finding]:
+        """Get findings for a specific file."""
+        return [f for f in self.findings if f.location.file_path == file_path]
+
+    def get_affected_files(self) -> List[str]:
+        """Get list of unique files with findings."""
+        return list(set(f.location.file_path for f in self.findings))
+
+    def has_critical_findings(self) -> bool:
+        """Check if scan has any critical findings."""
+        return any(f.severity == Severity.CRITICAL for f in self.findings)
+
+    def __iter__(self) -> Iterator[Finding]:
+        """Iterate over findings."""
+        return iter(self.findings)
+
+    def __len__(self) -> int:
+        """Number of findings."""
+        return len(self.findings)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert scan result to dictionary."""
+        return {
+            'target_path': self.target_path,
+            'findings': [f.to_dict() for f in self.findings],
+            'files_scanned': self.files_scanned,
+            'rules_applied': self.rules_applied,
+            'scan_duration_seconds': self.scan_duration_seconds,
+            'errors': self.errors,
+            'summary': self.summary,
+        }
